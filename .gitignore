@@ -1,0 +1,12 @@
+# Mac system files
+.DS_Store
+
+# Python files
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Docker files (if you want to ignore local data)
+.docker/
