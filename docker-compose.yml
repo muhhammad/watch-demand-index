@@ -1,0 +1,28 @@
+services:
+
+  postgres:
+    image: postgres:15
+    container_name: watch_postgres
+    environment:
+      POSTGRES_USER: watchuser
+      POSTGRES_PASSWORD: watchpass
+      POSTGRES_DB: watchdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  dashboard:
+    image: python:3.11-slim
+    container_name: watch_dashboard
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
