@@ -1,28 +1,36 @@
-services:
+version: "3.9"
 
+services:
   postgres:
     image: postgres:15
     container_name: watch_postgres
     environment:
+      POSTGRES_DB: watchdb
       POSTGRES_USER: watchuser
       POSTGRES_PASSWORD: watchpass
-      POSTGRES_DB: watchdb
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./ingestion/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
 
   dashboard:
-    image: python:3.11-slim
+    build:
+      context: .                # Project root
+      dockerfile: dashboard/Dockerfile
     container_name: watch_dashboard
-    working_dir: /app
-    volumes:
-      - .:/app
-    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
     ports:
       - "8501:8501"
     depends_on:
       - postgres
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: watchdb
+      DB_USER: watchuser
+      DB_PASSWORD: watchpass
+    restart: unless-stopped
 
 volumes:
   pgdata:

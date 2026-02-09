@@ -25,14 +25,16 @@ st.caption("Liquidity & exit intelligence for professional watch dealers")
 # -----------------------------
 # Database connection
 # -----------------------------
+import os
+
 @st.cache_resource
 def get_connection():
     return psycopg2.connect(
-        host="localhost",
-        port=5432,
-        database="watchdb",
-        user="watchuser",
-        password="watchpass"
+        host=os.getenv("DB_HOST", "postgres"),
+        port=int(os.getenv("DB_PORT", 5432)),
+        database=os.getenv("DB_NAME", "watchdb"),
+        user=os.getenv("DB_USER", "watchuser"),
+        password=os.getenv("DB_PASSWORD", "watchpass")
     )
 
 conn = get_connection()
@@ -60,8 +62,7 @@ query = """
     JOIN models m ON r.model_id = m.model_id
     JOIN brands b ON m.brand_id = b.brand_id
     JOIN listings_daily l 
-    ON l.reference_id = d.reference_id
-    AND l.snapshot_date = d.snapshot_date
+        ON l.reference_id = d.reference_id
     ORDER BY d.sellability_score DESC;
 """
 
@@ -108,6 +109,28 @@ filtered = df[
 ]
 
 # -----------------------------
+# Compute Target Buy Price (SAFE, FINAL)
+# -----------------------------
+
+filtered = filtered.copy()  # break pandas view
+
+target_prices = []
+
+for _, row in filtered.iterrows():
+    price, _ = calculate_target_buy_price(
+        avg_price=row["avg_price"],
+        min_price=row["min_price"],
+        avg_days_on_market=row["avg_days_on_market"],
+        desired_exit_days=row["expected_exit_max"],
+        price_risk_band=row["price_risk_band"],
+        market_depth=row["market_depth"]
+    )
+    target_prices.append(float(price))
+
+filtered["Target Buy Price"] = target_prices
+
+
+# -----------------------------
 # Dealer-friendly labels
 # -----------------------------
 def classify(score):
@@ -119,19 +142,6 @@ def classify(score):
         return "🧊 Capital Trap"
 
 filtered["Dealer Signal"] = filtered["sellability_score"].apply(classify)
-
-def compute_target_price(row):
-    target_price, _ = calculate_target_buy_price(
-        avg_price=row["avg_price"],
-        min_price=row["min_price"],
-        avg_days_on_market=row["avg_days_on_market"],
-        desired_exit_days=row["expected_exit_max"],
-        price_risk_band=row["price_risk_band"],
-        market_depth=row["market_depth"]
-    )
-    return target_price
-
-filtered["Target Buy Price"] = filtered.apply(compute_target_price, axis=1)
 
 
 # -----------------------------
