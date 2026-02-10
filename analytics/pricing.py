@@ -1,75 +1,59 @@
 def calculate_target_buy_price(
-    avg_price: float,
-    min_price: float,
-    avg_days_on_market: int,
-    desired_exit_days: int,
-    price_risk_band: str,
-    market_depth: str,
-    profit_buffer: float = 0.12
+    avg_price,
+    min_price,
+    avg_days_on_market,
+    desired_exit_days,
+    price_risk_band,
+    market_depth,
+    profit_buffer=0.12
 ):
-    """
-    Calculates the maximum target buy price for a watch reference.
+    breakdown = {}
 
-    Returns:
-        target_buy_price (float)
-        breakdown (dict) – for dashboard explainability
-    """
+    # 1. Market depth adjustment
+    depth_discount_map = {
+        "Deep": 0.03,
+        "Moderate": 0.06,
+        "Thin": 0.10
+    }
+    depth_discount = depth_discount_map.get(market_depth, 0.05)
+    depth_adjusted_price = avg_price * (1 - depth_discount)
 
-    # 1. Base exit price (liquidity-adjusted)
-    market_depth = market_depth.lower()
+    breakdown["Market depth discount"] = f"-{int(depth_discount * 100)}%"
+    breakdown["After depth adjustment"] = depth_adjusted_price
 
-    if market_depth == "deep":
-        liquidity_discount = 0.03
-    elif market_depth == "moderate":
-        liquidity_discount = 0.06
-    else:  # thin
-        liquidity_discount = 0.10
-
-    base_exit_price = avg_price * (1 - liquidity_discount)
-
-    # 2. Time penalty (only if faster than market)
-    if desired_exit_days < avg_days_on_market:
-        time_penalty_ratio = (
-            (avg_days_on_market - desired_exit_days) / avg_days_on_market
-        )
+    # 2. Time pressure adjustment
+    if avg_days_on_market and desired_exit_days < avg_days_on_market:
+        time_penalty = ((avg_days_on_market - desired_exit_days) / avg_days_on_market) * 0.25
     else:
-        time_penalty_ratio = 0
+        time_penalty = 0
 
-    time_penalty_discount = time_penalty_ratio * 0.25
-    time_adjusted_price = base_exit_price * (1 - time_penalty_discount)
+    time_adjusted_price = depth_adjusted_price * (1 - time_penalty)
 
-    # 3. Risk band adjustment
-    price_risk_band = price_risk_band.lower()
+    breakdown["Time pressure discount"] = f"-{int(time_penalty * 100)}%"
+    breakdown["After time adjustment"] = time_adjusted_price
 
-    if price_risk_band == "low":
-        risk_multiplier = 1.00
-    elif price_risk_band == "medium":
-        risk_multiplier = 0.95
-    else:  # high
-        risk_multiplier = 0.88
+    # 3. Risk adjustment
+    risk_multiplier_map = {
+        "Low": 1.0,
+        "Medium": 0.95,
+        "High": 0.88
+    }
+    risk_multiplier = risk_multiplier_map.get(price_risk_band, 0.95)
 
     risk_adjusted_price = time_adjusted_price * risk_multiplier
 
+    breakdown["Risk adjustment"] = f"x{risk_multiplier}"
+    breakdown["After risk adjustment"] = risk_adjusted_price
+
     # 4. Profit buffer
-    target_buy_price = risk_adjusted_price * (1 - profit_buffer)
+    final_price = risk_adjusted_price * (1 - profit_buffer)
 
-    # 5. Guardrails
-    target_buy_price = min(target_buy_price, avg_price)
-    target_buy_price = max(target_buy_price, min_price * 0.95)
+    breakdown["Dealer profit buffer"] = f"-{int(profit_buffer * 100)}%"
+    breakdown["Final target buy price"] = final_price
 
-    # Round for dealer readability
-    target_buy_price = round(target_buy_price, -2)
+    # Guardrails
+    final_price = min(avg_price, max(min_price * 0.95, final_price))
 
-    # 6. Explainability payload
-    breakdown = {
-        "avg_price": avg_price,
-        "min_price": min_price,
-        "base_exit_price": round(base_exit_price, 2),
-        "liquidity_discount_pct": liquidity_discount * 100,
-        "time_penalty_pct": round(time_penalty_discount * 100, 2),
-        "risk_multiplier": risk_multiplier,
-        "profit_buffer_pct": profit_buffer * 100,
-        "final_target_buy_price": target_buy_price
-    }
+    breakdown["Guardrails applied"] = "Yes"
 
-    return target_buy_price, breakdown
+    return round(final_price, 0), breakdown

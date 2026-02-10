@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
+import os
 
+# Allow imports from project root
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT_DIR))
 
@@ -22,11 +24,10 @@ st.set_page_config(
 st.title("⌚ Watch Demand Index – Dealer Dashboard")
 st.caption("Liquidity & exit intelligence for professional watch dealers")
 
+
 # -----------------------------
 # Database connection
 # -----------------------------
-import os
-
 @st.cache_resource
 def get_connection():
     return psycopg2.connect(
@@ -39,11 +40,16 @@ def get_connection():
 
 conn = get_connection()
 
+
 # -----------------------------
-# Load data
+# Load data (LATEST SNAPSHOT)
 # -----------------------------
 query = """
-    SELECT
+WITH latest_snapshot AS (
+    SELECT MAX(snapshot_date) AS snapshot_date
+    FROM demand_scores
+)
+SELECT
     d.snapshot_date,
     b.brand_name,
     m.model_name,
@@ -57,20 +63,79 @@ query = """
     l.avg_price,
     l.min_price,
     l.avg_days_on_market
-    FROM demand_scores d
-    JOIN watch_references r ON d.reference_id = r.reference_id
-    JOIN models m ON r.model_id = m.model_id
-    JOIN brands b ON m.brand_id = b.brand_id
-    JOIN listings_daily l 
-        ON l.reference_id = d.reference_id
-    ORDER BY d.sellability_score DESC;
+FROM demand_scores d
+JOIN latest_snapshot ls
+  ON d.snapshot_date = ls.snapshot_date
+JOIN watch_references r
+  ON d.reference_id = r.reference_id
+JOIN models m
+  ON r.model_id = m.model_id
+JOIN brands b
+  ON m.brand_id = b.brand_id
+JOIN listings_daily l
+  ON l.reference_id = d.reference_id
+ AND l.snapshot_date = d.snapshot_date
+ORDER BY d.sellability_score DESC;
 """
 
 df = pd.read_sql(query, conn)
 
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
 # -----------------------------
-# Sidebar filters
+# Dealer profile (TOP, isolated)
 # -----------------------------
+with st.sidebar.expander("🧮 Dealer Profile", expanded=True):
+    dealer_profile = st.selectbox(
+        "Trading style",
+        ["Conservative", "Balanced", "Aggressive"]
+    )
+
+PROFILE_CONFIG = {
+    "Conservative": {
+        "min_profit_per_day": 800,
+        "min_sellability": 70,
+        "require_high_exit": True
+    },
+    "Balanced": {
+        "min_profit_per_day": 500,
+        "min_sellability": 60,
+        "require_high_exit": False
+    },
+    "Aggressive": {
+        "min_profit_per_day": 200,
+        "min_sellability": 50,
+        "require_high_exit": False
+    }
+}
+
+profile = PROFILE_CONFIG[dealer_profile]
+
+
+# -----------------------------
+# Alerts (separate section)
+# -----------------------------
+with st.sidebar.expander("🔔 Alerts", expanded=True):
+    alert_enabled = st.checkbox(
+        "Enable BUY NOW alerts",
+        value=True
+    )
+
+    alert_min_profit_per_day = st.number_input(
+        "Minimum Profit / Day ($)",
+        min_value=0,
+        value=profile["min_profit_per_day"],
+        step=100
+    )
+
+
+# -----------------------------
+# Filters (clearly separated)
+# -----------------------------
+st.sidebar.markdown("---")
 st.sidebar.header("🔎 Filters")
 
 brand_filter = st.sidebar.multiselect(
@@ -95,8 +160,13 @@ min_score = st.sidebar.slider(
     "Minimum Sellability Score",
     min_value=0,
     max_value=100,
-    value=60
+    value=profile["min_sellability"]
 )
+
+
+# ============================================================
+# MAIN LOGIC
+# ============================================================
 
 # -----------------------------
 # Apply filters
@@ -106,18 +176,18 @@ filtered = df[
     (df["price_risk_band"].isin(risk_filter)) &
     (df["exit_confidence"].isin(exit_conf_filter)) &
     (df["sellability_score"] >= min_score)
-]
+].copy()
+
 
 # -----------------------------
-# Compute Target Buy Price (SAFE, FINAL)
+# Compute pricing, profit/day, signal
 # -----------------------------
-
-filtered = filtered.copy()  # break pandas view
-
 target_prices = []
+profit_per_day_list = []
+deal_signal_list = []
 
 for _, row in filtered.iterrows():
-    price, _ = calculate_target_buy_price(
+    target_price, _ = calculate_target_buy_price(
         avg_price=row["avg_price"],
         min_price=row["min_price"],
         avg_days_on_market=row["avg_days_on_market"],
@@ -125,37 +195,70 @@ for _, row in filtered.iterrows():
         price_risk_band=row["price_risk_band"],
         market_depth=row["market_depth"]
     )
-    target_prices.append(float(price))
+
+    delta = row["avg_price"] - target_price
+    days_locked = max(row["expected_exit_max"], 1)
+    profit_per_day = delta / days_locked
+
+    if (
+        profit_per_day >= profile["min_profit_per_day"]
+        and delta > 0
+        and (not profile["require_high_exit"] or row["exit_confidence"] == "High")
+    ):
+        signal = "🟢 BUY NOW"
+    elif profit_per_day > 0 and row["market_depth"] in ["Deep", "Moderate"]:
+        signal = "🟡 NEGOTIATE"
+    else:
+        signal = "🔴 AVOID"
+
+    target_prices.append(round(target_price, 0))
+    profit_per_day_list.append(round(profit_per_day, 0))
+    deal_signal_list.append(signal)
 
 filtered["Target Buy Price"] = target_prices
+filtered["Profit / Day"] = profit_per_day_list
+filtered["Deal Signal"] = deal_signal_list
+
+filtered = filtered.sort_values("Profit / Day", ascending=False)
 
 
-# -----------------------------
-# Dealer-friendly labels
-# -----------------------------
-def classify(score):
-    if score >= 75:
-        return "🔥 Flip Fast"
-    elif score >= 60:
-        return "🟡 Selective Buy"
-    else:
-        return "🧊 Capital Trap"
+# ============================================================
+# ALERTS (TOP OF PAGE)
+# ============================================================
+alerts = filtered[
+    (filtered["Deal Signal"] == "🟢 BUY NOW") &
+    (filtered["Profit / Day"] >= alert_min_profit_per_day)
+]
 
-filtered["Dealer Signal"] = filtered["sellability_score"].apply(classify)
+if alert_enabled and not alerts.empty:
+    st.error(f"🚨 BUY NOW ALERTS – {dealer_profile} Profile")
+
+    for _, row in alerts.iterrows():
+        st.markdown(
+            f"""
+            **{row['brand_name']} {row['reference_code']}**  
+            💰 Profit / Day: **${row['Profit / Day']:,.0f}**  
+            ⏱ Expected Exit: {row['expected_exit_min']}–{row['expected_exit_max']} days  
+            📈 Sellability Score: {row['sellability_score']}
+            """
+        )
+else:
+    st.info("No BUY NOW alerts at the moment.")
 
 
-# -----------------------------
-# Main table
-# -----------------------------
+# ============================================================
+# MAIN TABLE
+# ============================================================
 st.subheader("📊 Current Market Opportunities")
 
 st.dataframe(
     filtered[[
-        "Dealer Signal",
+        "Deal Signal",
         "brand_name",
         "model_name",
         "reference_code",
         "Target Buy Price",
+        "Profit / Day",
         "sellability_score",
         "exit_confidence",
         "expected_exit_min",
@@ -167,50 +270,42 @@ st.dataframe(
 )
 
 
-# -----------------------------
-# Highlight top pick
-# -----------------------------
-# -----------------------------
-# Highlight top pick
-# -----------------------------
+# ============================================================
+# TOP OPPORTUNITY
+# ============================================================
 st.subheader("🏆 Top Opportunity Right Now")
 
 if not filtered.empty:
     top = filtered.iloc[0]
 
-    col1, col2, col3, col4 = st.columns(4)
+    target_price, breakdown = calculate_target_buy_price(
+        avg_price=top["avg_price"],
+        min_price=top["min_price"],
+        avg_days_on_market=top["avg_days_on_market"],
+        desired_exit_days=top["expected_exit_max"],
+        price_risk_band=top["price_risk_band"],
+        market_depth=top["market_depth"]
+    )
+
+    delta = top["avg_price"] - target_price
+    profit_per_day = delta / max(top["expected_exit_max"], 1)
+
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     col1.metric("Reference", f"{top['brand_name']} {top['reference_code']}")
-
-    col2.metric(
-        "Target Buy Price",
-        f"${top['Target Buy Price']:,.0f}"
-    )
-
+    col2.metric("Target Buy Price", f"${target_price:,.0f}")
     col3.metric("Sellability Score", top["sellability_score"])
+    col4.metric("Expected Exit (Days)", f"{top['expected_exit_min']} – {top['expected_exit_max']}")
+    col5.metric("Profit / Day", f"${profit_per_day:,.0f}")
 
-    col4.metric(
-        "Expected Exit (Days)",
-        f"{top['expected_exit_min']} – {top['expected_exit_max']}"
-    )
+    st.markdown(f"## {top['Deal Signal']}")
 
-    # ---- Market vs Target delta (ADD HERE) ----
-    delta = top["avg_price"] - top["Target Buy Price"]
+    with st.expander("🔍 Why this target buy price?"):
+        for k, v in breakdown.items():
+            if isinstance(v, (int, float)):
+                st.write(f"**{k}:** ${v:,.0f}")
+            else:
+                st.write(f"**{k}:** {v}")
 
-    st.caption(
-        f"Market avg: ${top['avg_price']:,.0f} "
-        f"({ '+' if delta > 0 else '' }${delta:,.0f} vs target)"
-    )
-
-    if delta > 0:
-        st.caption(f"🟢 Market trades ${delta:,.0f} above target — negotiable")
-    else:
-        st.caption(f"🔴 Market trades ${abs(delta):,.0f} below target — overpriced")
-
-
-    st.success(
-        f"**Dealer Insight:** High liquidity with {top['market_depth'].lower()} market depth "
-        f"and {top['exit_confidence'].lower()} exit confidence."
-    )
 else:
     st.warning("No watches match the current filter criteria.")
