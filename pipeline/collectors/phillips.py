@@ -1,64 +1,101 @@
-import requests
-from bs4 import BeautifulSoup
 import psycopg2
-from datetime import date
+from playwright.sync_api import sync_playwright
+from datetime import datetime
+
+AUCTION_URL = "https://www.phillips.com/auction/CH080425"
 
 
-URL = "https://www.phillips.com/auction/CH080425"
-
-
-def fetch_html():
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    response = requests.get(URL, headers=headers)
-    response.raise_for_status()
-    return response.text
-
-
-def extract_lots(html):
-    soup = BeautifulSoup(html, "html.parser")
-
-    lot_divs = soup.find_all("div", {"data-testid": "grid-item"})
+# -----------------------------
+# Fetch lots from Phillips
+# -----------------------------
+def fetch_phillips_lots(url):
 
     lots = []
 
-    for div in lot_divs:
-        try:
-            # Title
-            title_tag = div.find("a", {"data-testid": lambda x: x and "object-title" in x})
-            title = title_tag.get_text(strip=True) if title_tag else None
+    p = sync_playwright().start()
 
-            # Lot number
-            lot_number_tag = div.find("span", string=lambda x: x and "Lot" in x)
-            lot_number = None
-            if lot_number_tag:
-                lot_number = lot_number_tag.get_text(strip=True).replace("Lot", "").strip()
+    browser = p.chromium.launch(
+        headless=True,
+        args=["--disable-blink-features=AutomationControlled"]
+    )
 
-            # Estimate
-            estimate_tag = div.find(string=lambda x: x and "Estimate" in x)
-            estimate = estimate_tag.strip() if estimate_tag else None
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 2000}
+    )
 
-            # Sold price
-            sold_tag = div.find(string=lambda x: x and "Sold" in x)
-            sold_price = None
-            if sold_tag:
-                sold_price = sold_tag.strip()
+    page = context.new_page()
 
-            lots.append({
-                "lot_number": lot_number,
-                "title": title,
-                "estimate_text": estimate,
-                "sold_text": sold_price
-            })
+    print("Opening Phillips auction page...")
+    page.goto(url, timeout=60000)
 
-        except Exception:
-            continue
+    # Accept cookie consent
+    try:
+        consent = page.locator("button:has-text('Accept')")
+        if consent.count() > 0:
+            consent.first.click(timeout=5000)
+    except:
+        pass
+
+    print("Waiting for lots to render...")
+    page.wait_for_selector("div[data-testid='grid-item']", timeout=60000)
+
+    print("Scrolling to load all lots...")
+
+    previous_height = 0
+
+    while True:
+
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(1500)
+
+        current_height = page.evaluate("document.body.scrollHeight")
+
+        if current_height == previous_height:
+            break
+
+        previous_height = current_height
+
+    cards = page.locator("div[data-testid='grid-item']")
+    count = cards.count()
+
+    print(f"Lots extracted: {count}")
+
+    import re
+
+    for i in range(count):
+
+        text = cards.nth(i).inner_text()
+
+        lot_match = re.search(r"Lot\s*(\d+)", text)
+        price_match = re.search(r"CHF\s*([\d,]+)", text)
+
+        lot_number = lot_match.group(1) if lot_match else None
+
+        hammer_price = (
+            float(price_match.group(1).replace(",", ""))
+            if price_match else None
+        )
+
+        lots.append({
+            "lot_number": lot_number,
+            "hammer_price": hammer_price,
+            "currency": "CHF"
+        })
+
+    # CRITICAL FIX: force close everything immediately
+    browser.close()
+    p.stop()
+
+    print("Browser closed cleanly.")
 
     return lots
 
 
-def insert_into_db(lots):
+# -----------------------------
+# Insert lots into Postgres
+# -----------------------------
+def insert_auction_lots(lots):
+
     conn = psycopg2.connect(
         host="localhost",
         database="watchdb",
@@ -66,67 +103,47 @@ def insert_into_db(lots):
         password="watchpass"
     )
 
-    with conn:
-        with conn.cursor() as cur:
+    cur = conn.cursor()
 
-            cur.execute(
-                "SELECT auction_house_id FROM auction_houses WHERE name = %s",
-                ("Phillips",)
+    for lot in lots:
+
+        cur.execute("""
+            INSERT INTO auction_lots
+            (
+                auction_event_id,
+                lot_number,
+                hammer_price,
+                currency,
+                created_at
             )
-            auction_house_id = cur.fetchone()[0]
+            VALUES (%s,%s,%s,%s,%s)
+        """, (
+            7,
+            lot["lot_number"],
+            lot["hammer_price"],
+            lot["currency"],
+            datetime.now()
+        ))
 
-            cur.execute("""
-                INSERT INTO auction_events (
-                    auction_house_id,
-                    event_name,
-                    event_date,
-                    currency
-                )
-                VALUES (%s, %s, %s, %s)
-                RETURNING auction_event_id
-            """, (
-                auction_house_id,
-                "Geneva Watch Auction November 2025",
-                date(2025, 11, 8),
-                "CHF"
-            ))
+    conn.commit()
 
-            auction_event_id = cur.fetchone()[0]
-
-            for lot in lots:
-                cur.execute("""
-                    INSERT INTO auction_lots (
-                        auction_event_id,
-                        lot_number,
-                        brand_name,
-                        model_name,
-                        hammer_price,
-                        currency
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    auction_event_id,
-                    lot["lot_number"],
-                    lot["title"],
-                    None,
-                    None,
-                    "CHF"
-                ))
-
+    cur.close()
     conn.close()
 
+    print("Inserted into database.")
 
+
+# -----------------------------
+# Main runner
+# -----------------------------
 def main():
-    html = fetch_html()
-    lots = extract_lots(html)
 
-    print(f"Lots found: {len(lots)}")
+    lots = fetch_phillips_lots(AUCTION_URL)
 
     if lots:
-        insert_into_db(lots)
-        print("Inserted into database.")
-    else:
-        print("No lots found.")
+        insert_auction_lots(lots)
+
+    print("Done.")
 
 
 if __name__ == "__main__":
