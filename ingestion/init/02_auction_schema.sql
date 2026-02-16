@@ -34,5 +34,7 @@ CREATE TABLE IF NOT EXISTS auction_lots (
     price NUMERIC,
     currency TEXT,
     url TEXT UNIQUE,
-    created_at TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_auction_url UNIQUE (url),
+    CONSTRAINT unique_auction_lot UNIQUE (auction_house, auction_id, lot)
 );
