@@ -23,22 +23,16 @@ CREATE TABLE IF NOT EXISTS auction_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE auction_lots (
-    lot_id SERIAL PRIMARY KEY,
-    auction_id INT REFERENCES auctions(auction_id),
-
-    lot_number VARCHAR(20),
-
-    title TEXT,
-    description TEXT,
-
-    brand_name VARCHAR(100),
-
-    reference_code VARCHAR(50),
-    reference_id INT REFERENCES watch_references(reference_id),
-
-    estimate_low NUMERIC,
-    estimate_high NUMERIC,
-    hammer_price NUMERIC,
-    currency VARCHAR(10)
+CREATE TABLE IF NOT EXISTS auction_lots (
+    id SERIAL PRIMARY KEY,
+    auction_house TEXT,
+    auction_id TEXT,
+    lot INTEGER,
+    brand TEXT,
+    reference_code TEXT,
+    model TEXT,
+    price NUMERIC,
+    currency TEXT,
+    url TEXT UNIQUE,
+    created_at TIMESTAMP
 );

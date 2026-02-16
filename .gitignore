@@ -10,3 +10,6 @@ venv/
 
 # Docker files (if you want to ignore local data)
 .docker/
+
+# Playwright session files
+playwright_session/
