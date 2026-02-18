@@ -28,6 +28,7 @@ CREATE TABLE models (
     model_id SERIAL PRIMARY KEY,
     brand_id INT NOT NULL REFERENCES brands(brand_id),
     model_name TEXT NOT NULL,
+
     UNIQUE (brand_id, model_name)
 );
 
@@ -48,7 +49,6 @@ CREATE TABLE watch_references (
 CREATE TABLE listings_daily (
     snapshot_date DATE NOT NULL,
     reference_id INT NOT NULL REFERENCES watch_references(reference_id),
-
     avg_price NUMERIC NOT NULL,
     min_price NUMERIC NOT NULL,
     listing_count INT NOT NULL,
@@ -64,7 +64,6 @@ CREATE TABLE listings_daily (
 CREATE TABLE demand_scores (
     snapshot_date DATE NOT NULL,
     reference_id INT NOT NULL REFERENCES watch_references(reference_id),
-
     sellability_score INT NOT NULL CHECK (sellability_score BETWEEN 0 AND 100),
     exit_confidence TEXT NOT NULL CHECK (exit_confidence IN ('High', 'Medium', 'Low')),
     expected_exit_min INT NOT NULL,
@@ -76,14 +75,51 @@ CREATE TABLE demand_scores (
 );
 
 
--- -----------------------------
--- Performance indexes
--- -----------------------------
-CREATE INDEX idx_listings_reference_date
-    ON listings_daily (reference_id, snapshot_date);
+-- ============================================
+-- Market listings (Chrono24, dealers, etc.)
+-- ============================================
 
-CREATE INDEX idx_demand_scores_reference_date
-    ON demand_scores (reference_id, snapshot_date);
+CREATE TABLE IF NOT EXISTS market_listings (
 
-CREATE INDEX idx_demand_scores_sellability
-    ON demand_scores (sellability_score DESC);
+    id SERIAL PRIMARY KEY,
+    source TEXT NOT NULL,              -- e.g. CHRONO24
+    brand TEXT,
+    model TEXT,
+    reference_code TEXT,
+    price NUMERIC,
+    currency TEXT,
+    url TEXT NOT NULL UNIQUE,
+    collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE IF NOT EXISTS watch_index_daily (
+    id BIGSERIAL PRIMARY KEY,
+    brand TEXT NOT NULL,
+    reference_code TEXT NULL,
+    index_date DATE NOT NULL,
+    lot_count INTEGER NOT NULL,
+    total_value NUMERIC(18,2) NOT NULL,
+    avg_price NUMERIC(18,2) NOT NULL,
+    median_price NUMERIC(18,2) NULL,
+    demand_score NUMERIC(10,4) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE (brand, reference_code, index_date)
+);
+
+
+CREATE TABLE IF NOT EXISTS watch_index_brand_daily (
+    id BIGSERIAL PRIMARY KEY,
+    brand TEXT NOT NULL,
+    index_date DATE NOT NULL,
+    lot_count INTEGER NOT NULL,
+    total_value NUMERIC(18,2) NOT NULL,
+    avg_price NUMERIC(18,2) NOT NULL,
+    median_price NUMERIC(18,2),
+    unique_references INTEGER NOT NULL,
+    demand_score NUMERIC(10,4) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    UNIQUE (brand, index_date)
+);

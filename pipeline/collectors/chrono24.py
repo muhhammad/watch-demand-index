@@ -1,87 +1,330 @@
-import requests
-from bs4 import BeautifulSoup
-from datetime import date
 import re
 import time
+import random
+import psycopg2
+
+from playwright.sync_api import sync_playwright, TimeoutError
 
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0 Safari/537.36"
-    )
+BASE_URL = "https://www.chrono24.com"
+
+SEARCH_URLS = [
+
+    # Core brands for demo
+    "https://www.chrono24.com/rolex/index.htm",
+    "https://www.chrono24.com/patekphilippe/index.htm",
+    "https://www.chrono24.com/audemarspiguet/index.htm",
+    "https://www.chrono24.com/richardmille/index.htm",
+    "https://www.chrono24.com/fpjourn/index.htm",
+    "https://www.chrono24.com/omegasa/index.htm"
+
+]
+
+
+DB_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "database": "watchdb",
+    "user": "watchuser",
+    "password": "watchpass"
 }
 
 
-def fetch_chrono24_listings(brand: str, reference_code: str):
-    """
-    Fetch public Chrono24 search results for a watch reference.
+# ---------------------------------------
+# Database
+# ---------------------------------------
 
-    Returns a list of dicts:
-    {
-        price: float,
-        days_on_market: int | None,
-        snapshot_date: date
-    }
+def init_db():
 
-    NOTE:
-    - Public pages only
-    - No login
-    - Demo-safe (low frequency)
-    """
+    conn = psycopg2.connect(**DB_CONFIG)
 
-    query = reference_code.replace(" ", "+")
-    url = (
-        "https://www.chrono24.com/search/index.htm"
-        f"?query={query}&dosearch=true"
-    )
+    conn.autocommit = False
 
-    print(f"  🌐 GET {url}")
+    print("Connected to PostgreSQL")
 
-    response = requests.get(url, headers=HEADERS, timeout=30)
-    response.raise_for_status()
+    return conn
 
-    soup = BeautifulSoup(response.text, "html.parser")
 
-    listings = []
-    snapshot_date = date.today()
+def insert_listing(conn, result):
 
-    # Chrono24 listings are rendered as article cards
-    cards = soup.find_all("article")
+    cursor = conn.cursor()
 
-    for card in cards:
+    cursor.execute("""
+        INSERT INTO market_listings (
+            source,
+            brand,
+            model,
+            reference_code,
+            price,
+            currency,
+            url
+        )
+        VALUES (%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (url) DO NOTHING
+    """, (
+
+        result["source"],
+        result["brand"],
+        result["model"],
+        result["reference_code"],
+        result["price"],
+        result["currency"],
+        result["url"]
+
+    ))
+
+    cursor.close()
+
+
+# ---------------------------------------
+# Helpers
+# ---------------------------------------
+
+def block_resources(page):
+
+    def handler(route, request):
+
+        if request.resource_type in ["image", "font", "media"]:
+            route.abort()
+        else:
+            route.continue_()
+
+    page.route("**/*", handler)
+
+
+def extract_price(text):
+
+    try:
+
+        currency = None
+
+        if "CHF" in text:
+            currency = "CHF"
+        elif "USD" in text:
+            currency = "USD"
+        elif "EUR" in text:
+            currency = "EUR"
+
+        numeric = re.sub(r"[^\d]", "", text)
+
+        if not numeric:
+            return None, None
+
+        price = float(numeric)
+
+        return price, currency
+
+    except:
+
+        return None, None
+
+
+def extract_reference(text):
+
+    match = re.search(r"\b\d{3,}\b", text)
+
+    if match:
+        return match.group(0)
+
+    return None
+
+
+# ---------------------------------------
+# Extract listings from page
+# ---------------------------------------
+
+def extract_page_listings(page):
+
+    page.wait_for_selector("[data-testid='listing-card']", timeout=30000)
+
+    cards = page.locator("[data-testid='listing-card']")
+
+    count = cards.count()
+
+    results = []
+
+    for i in range(count):
+
         try:
-            # -----------------------------
-            # Price extraction
-            # -----------------------------
-            price_tag = card.find(attrs={"data-price": True})
-            if not price_tag:
-                continue
 
-            price = float(price_tag["data-price"])
+            card = cards.nth(i)
 
-            # -----------------------------
-            # Days on market (best-effort)
-            # -----------------------------
-            text = card.get_text(" ", strip=True)
+            title = card.locator("[data-testid='listing-card-title']").inner_text()
 
-            days_match = re.search(r"(\d+)\s+days", text, re.IGNORECASE)
-            days_on_market = int(days_match.group(1)) if days_match else None
+            url = card.locator("a").first.get_attribute("href")
 
-            listings.append(
-                {
-                    "price": price,
-                    "days_on_market": days_on_market,
-                    "snapshot_date": snapshot_date
-                }
-            )
+            price_text = card.locator("[data-testid='listing-card-price']").inner_text()
 
-        except Exception:
-            # Skip malformed cards silently (demo-safe)
+            price, currency = extract_price(price_text)
+
+            brand = title.split()[0]
+
+            reference = extract_reference(title)
+
+            if url and not url.startswith("http"):
+                url = BASE_URL + url
+
+            result = {
+
+                "source": "CHRONO24",
+
+                "brand": brand,
+
+                "model": title,
+
+                "reference_code": reference,
+
+                "price": price,
+
+                "currency": currency,
+
+                "url": url
+
+            }
+
+            print(f"{brand} → {reference} → {price}")
+
+            results.append(result)
+
+        except Exception as e:
+
             continue
 
-    # Polite pause (important for demo credibility)
-    time.sleep(1)
+    return results
 
-    return listings
+
+# ---------------------------------------
+# Main extraction
+# ---------------------------------------
+
+def accept_consent(page):
+
+    try:
+
+        # main consent button
+        page.locator("#didomi-notice-agree-button").click(timeout=5000)
+
+        print("Consent accepted (main)")
+
+        page.wait_for_timeout(2000)
+
+        return
+
+    except:
+        pass
+
+    # iframe fallback
+    try:
+
+        frame = page.frame_locator("iframe[src*='didomi']")
+
+        frame.locator("#didomi-notice-agree-button").click(timeout=5000)
+
+        print("Consent accepted (iframe)")
+
+        page.wait_for_timeout(2000)
+
+    except:
+        pass
+
+
+def extract_all_listings(page):
+
+    all_results = []
+
+    for search_url in SEARCH_URLS:
+
+        print(f"\nExtracting {search_url}")
+
+        page.goto(search_url, timeout=60000, wait_until="domcontentloaded")
+
+        print(page.content())
+
+        accept_consent(page)
+
+        # correct selector
+        page.wait_for_selector(
+            "article[data-testid='search-result-item']",
+            timeout=60000
+        )
+
+        page.wait_for_timeout(2000)
+
+        results = extract_page_listings(page)
+
+        print(f"Found {len(results)} listings")
+
+        all_results.extend(results)
+
+    return all_results
+
+
+# ---------------------------------------
+# Main
+# ---------------------------------------
+
+def main():
+
+    conn = init_db()
+
+    inserted = 0
+
+    with sync_playwright() as p:
+
+        browser = p.chromium.launch_persistent_context(
+
+            user_data_dir="./playwright_session",
+
+            headless=False,   # critical
+
+            viewport={"width": 1280, "height": 900},
+
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120 Safari/537.36"
+            ),
+
+            locale="en-US",
+
+            timezone_id="Europe/Zurich"
+        )
+
+        page = browser.new_page()
+
+        block_resources(page)
+
+        results = extract_all_listings(page)
+
+        browser.close()
+
+    print()
+
+    for result in results:
+
+        if not result["url"]:
+            continue
+
+        try:
+
+            insert_listing(conn, result)
+
+            inserted += 1
+
+        except Exception as e:
+
+            print("Insert failed:", e)
+
+    conn.commit()
+
+    conn.close()
+
+    print()
+    print(f"Inserted {inserted} listings")
+
+
+# ---------------------------------------
+
+if __name__ == "__main__":
+
+    main()

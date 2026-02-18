@@ -38,3 +38,26 @@ CREATE TABLE demand_scores (
   market_depth TEXT,
   PRIMARY KEY (snapshot_date, reference_id)
 );
+
+-- ============================================
+-- Market listings (Chrono24, dealers, etc.)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS market_listings (
+
+    id SERIAL PRIMARY KEY,
+
+    source TEXT NOT NULL,              -- e.g. CHRONO24
+
+    brand TEXT,
+    model TEXT,
+    reference_code TEXT,
+
+    price NUMERIC,
+    currency TEXT,
+
+    url TEXT NOT NULL UNIQUE,
+
+    collected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+);
