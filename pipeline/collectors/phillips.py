@@ -34,7 +34,7 @@ def init_db():
         password="watchpass"  # change to your real password
     )
 
-    conn.autocommit = True
+    conn.autocommit = False
 
     print("Connected to PostgreSQL")
 
@@ -46,8 +46,7 @@ def insert_result(conn, result):
     cursor = conn.cursor()
 
     cursor.execute("""
-        INSERT INTO auction_lots
-        (
+        INSERT INTO auction_lots (
             auction_house,
             auction_id,
             lot,
@@ -57,21 +56,23 @@ def insert_result(conn, result):
             price,
             currency,
             url,
-            created_at
+            auction_date
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (url) DO NOTHING
     """, (
-        "Phillips",
-        "CH080425",
+
+        result["auction_house"],
+        result["auction_id"],
         result["lot"],
         result["brand"],
-        result["reference"],
+        result["reference_code"],
         result["model"],
         result["price"],
-        "CHF",
+        result["currency"],
         result["url"],
-        datetime.now(UTC)
+        result["auction_date"]
+
     ))
 
     cursor.close()
@@ -85,7 +86,7 @@ def extract_lot_urls(page):
 
     print("Extracting lot URLs...")
 
-    page.goto(AUCTION_URL, timeout=60000)
+    page.goto(AUCTION_URL, timeout=60000, wait_until="domcontentloaded")
 
     try:
         page.click("#onetrust-accept-btn-handler", timeout=3000)
@@ -125,14 +126,22 @@ def extract_lot_number(page):
 
     try:
 
-        text = page.locator(
-            ".pah-lot-placard__symbols"
-        ).inner_text()
+        el = page.locator(".pah-lot-placard__symbols").first
 
-        return int(text.strip())
+        el.wait_for(state="visible", timeout=10000)
+
+        for _ in range(5):
+
+            text = el.inner_text().strip()
+
+            if text.isdigit():
+                return int(text)
+
+            page.wait_for_timeout(200)
+
+        return None
 
     except:
-
         return None
 
 
@@ -230,13 +239,16 @@ def process_lot(page, url):
         )
 
         return {
-
+            "auction_house": "PHILLIPS",
+            "auction_id": "CH080425",
             "lot": lot,
             "brand": brand,
-            "reference": reference,
+            "reference_code": reference,
             "model": model,
             "price": price,
-            "url": url
+            "currency": "CHF",
+            "url": url,
+            "auction_date": "2025-04-08"
         }
 
     except TimeoutError:
@@ -285,6 +297,13 @@ def main():
 
         page = browser.new_page()
 
+        # Block heavy resources for massive speedup
+        page.route("**/*", lambda route, request:
+            route.abort()
+            if request.resource_type in ["image", "font", "media"]
+            else route.continue_()
+        )
+
         urls = extract_lot_urls(page)
 
         print()
@@ -293,15 +312,30 @@ def main():
 
             result = process_lot(page, url)
 
-            if result:
+            if not result:
+                continue
+
+            # Skip invalid lots (lot number is REQUIRED by DB constraint)
+            if result["lot"] is None:
+                print(f"Skipping — missing lot number: {result['url']}")
+                continue
+
+            try:
 
                 insert_result(conn, result)
 
                 results.append(result)
 
-            time.sleep(random.uniform(0.3, 0.8))
+            except Exception as e:
+
+                print(f"DB insert failed for {url} → {e}")
+
+            # time.sleep(random.uniform(0.3, 0.8))
 
         browser.close()
+
+    # COMMIT HERE ← CRITICAL
+    conn.commit()
 
     print()
 

@@ -23,18 +23,28 @@ CREATE TABLE IF NOT EXISTS auction_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS auction_lots (
-    id SERIAL PRIMARY KEY,
-    auction_house TEXT,
-    auction_id TEXT,
-    lot INTEGER,
-    brand TEXT,
+CREATE TABLE auction_lots (
+    id BIGSERIAL PRIMARY KEY,
+    -- identity
+    auction_house TEXT NOT NULL,
+    auction_id TEXT NOT NULL,
+    lot INTEGER NOT NULL,
+    -- watch identity
+    brand TEXT NOT NULL,
     reference_code TEXT,
     model TEXT,
-    price NUMERIC,
-    currency TEXT,
-    url TEXT UNIQUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT unique_auction_url UNIQUE (url),
-    CONSTRAINT unique_auction_lot UNIQUE (auction_house, auction_id, lot)
+    -- transaction data
+    price NUMERIC NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'CHF',
+    -- metadata
+    url TEXT NOT NULL,
+    image_url TEXT,
+    -- auction timing
+    auction_date DATE NOT NULL,
+    -- system fields
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- constraints
+    CONSTRAINT unique_url UNIQUE (url),
+    CONSTRAINT unique_auction_lot UNIQUE
+    (auction_house, auction_id, lot)
 );
