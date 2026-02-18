@@ -120,6 +120,20 @@ CREATE TABLE IF NOT EXISTS watch_index_brand_daily (
     unique_references INTEGER NOT NULL,
     demand_score NUMERIC(10,4) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     UNIQUE (brand, index_date)
+);
+
+
+CREATE TABLE watch_index_market_daily (
+    id BIGSERIAL PRIMARY KEY,
+    index_date DATE NOT NULL UNIQUE,
+    lot_count INTEGER NOT NULL,
+    total_value NUMERIC(18,2) NOT NULL,
+    avg_price NUMERIC(18,2) NOT NULL,
+    median_price NUMERIC(18,2),
+    unique_brands INTEGER NOT NULL,
+    unique_references INTEGER NOT NULL,
+    demand_score NUMERIC(12,4) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
