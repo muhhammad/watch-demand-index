@@ -3,17 +3,15 @@ import psycopg2
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-
 # Railway provides this automatically
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-
-# -----------------------------
-# FastAPI setup
-# -----------------------------
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL environment variable not set")
 
 app = FastAPI()
 
+# Allow dashboard access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,9 +22,8 @@ app.add_middleware(
 
 
 # -----------------------------
-# Database helper
+# Helper function
 # -----------------------------
-
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
@@ -34,16 +31,14 @@ def get_conn():
 # -----------------------------
 # Root
 # -----------------------------
-
 @app.get("/")
 def root():
     return {"status": "API running"}
 
 
 # -----------------------------
-# Auction lots
+# Auction lots endpoint
 # -----------------------------
-
 @app.get("/auction_lots")
 def get_auction_lots():
 
@@ -88,9 +83,8 @@ def get_auction_lots():
 
 
 # -----------------------------
-# Metrics
+# Metrics endpoint
 # -----------------------------
-
 @app.get("/metrics")
 def get_metrics():
 
@@ -124,7 +118,7 @@ def get_metrics():
     conn.close()
 
     return {
-        "total_lots": total_lots,
+        "total_lots": total_lots or 0,
         "avg_price": float(avg_price or 0),
         "total_value": float(total_value or 0),
         "top_brand": top_brand
@@ -132,9 +126,8 @@ def get_metrics():
 
 
 # -----------------------------
-# Brand Demand Index
+# Brand index endpoint
 # -----------------------------
-
 @app.get("/brand_index")
 def get_brand_index():
 
@@ -144,20 +137,18 @@ def get_brand_index():
     cursor.execute("""
         SELECT
             brand,
-            COUNT(*) as total_lots,
-            AVG(price) as avg_price,
-            SUM(price) as total_value
+            COUNT(*),
+            AVG(price),
+            SUM(price)
         FROM auction_lots
         WHERE price IS NOT NULL
         GROUP BY brand
-        ORDER BY total_value DESC
+        ORDER BY SUM(price) DESC
     """)
 
     results = []
 
-    for row in cursor.fetchall():
-
-        brand, total_lots, avg_price, total_value = row
+    for brand, total_lots, avg_price, total_value in cursor.fetchall():
 
         demand_index = (total_lots * avg_price) / 1000
 
