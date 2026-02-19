@@ -3,9 +3,14 @@ import psycopg2
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+
+# Railway provides this automatically
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-conn = psycopg2.connect(DATABASE_URL)
+
+# -----------------------------
+# FastAPI setup
+# -----------------------------
 
 app = FastAPI()
 
@@ -18,14 +23,31 @@ app.add_middleware(
 )
 
 
+# -----------------------------
+# Database helper
+# -----------------------------
+
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
+
+
+# -----------------------------
+# Root
+# -----------------------------
+
 @app.get("/")
 def root():
     return {"status": "API running"}
 
+
+# -----------------------------
+# Auction lots
+# -----------------------------
+
 @app.get("/auction_lots")
 def get_auction_lots():
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -57,7 +79,7 @@ def get_auction_lots():
             "brand": r[3],
             "reference_code": r[4],
             "model": r[5],
-            "price": r[6],
+            "price": float(r[6]) if r[6] else None,
             "currency": r[7],
             "auction_date": str(r[8]),
         }
@@ -65,24 +87,21 @@ def get_auction_lots():
     ]
 
 
+# -----------------------------
+# Metrics
+# -----------------------------
+
 @app.get("/metrics")
 def get_metrics():
 
-    conn = psycopg2.connect(
-        host="localhost",
-        port=5432,
-        database="watchdb",
-        user="watchuser",
-        password="watchpass"
-    )
-
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT
-            COUNT(*) as total_lots,
-            AVG(price) as avg_price,
-            SUM(price) as total_value
+            COUNT(*),
+            AVG(price),
+            SUM(price)
         FROM auction_lots
         WHERE price IS NOT NULL
     """)
@@ -90,10 +109,10 @@ def get_metrics():
     total_lots, avg_price, total_value = cursor.fetchone()
 
     cursor.execute("""
-        SELECT brand, COUNT(*) as count
+        SELECT brand, COUNT(*)
         FROM auction_lots
         GROUP BY brand
-        ORDER BY count DESC
+        ORDER BY COUNT(*) DESC
         LIMIT 1
     """)
 
@@ -112,17 +131,14 @@ def get_metrics():
     }
 
 
+# -----------------------------
+# Brand Demand Index
+# -----------------------------
+
 @app.get("/brand_index")
 def get_brand_index():
 
-    conn = psycopg2.connect(
-        host="localhost",
-        port=5432,
-        database="watchdb",
-        user="watchuser",
-        password="watchpass"
-    )
-
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute("""
