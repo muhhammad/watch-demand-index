@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 
 import {
   BarChart,
@@ -40,8 +40,11 @@ function App() {
   const [metrics, setMetrics] = useState(null)
   const [brandIndex, setBrandIndex] = useState([])
 
+  const [selectedBrand, setSelectedBrand] = useState("ALL")
+
   const [showAllLots, setShowAllLots] = useState(false)
   const [showAllBrands, setShowAllBrands] = useState(false)
+
 
   useEffect(() => {
 
@@ -59,11 +62,67 @@ function App() {
 
   }, [])
 
-  const visibleLots = showAllLots ? lots : lots.slice(0, 10)
 
-  const visibleBrands = showAllBrands
-    ? brandIndex
-    : brandIndex.slice(0, 5)
+  /* FILTERED DATA */
+
+  const filteredLots = useMemo(() => {
+
+    if (selectedBrand === "ALL")
+      return lots
+
+    return lots.filter(l =>
+      l.brand?.toLowerCase() === selectedBrand.toLowerCase()
+    )
+
+  }, [lots, selectedBrand])
+
+
+  const filteredBrandIndex = useMemo(() => {
+
+    if (selectedBrand === "ALL")
+      return brandIndex
+
+    return brandIndex.filter(b =>
+      b.brand?.toLowerCase() === selectedBrand.toLowerCase()
+    )
+
+  }, [brandIndex, selectedBrand])
+
+
+  const visibleLots =
+    showAllLots ? filteredLots : filteredLots.slice(0, 10)
+
+  const visibleBrands =
+    showAllBrands
+      ? filteredBrandIndex
+      : filteredBrandIndex.slice(0, 5)
+
+
+
+  /* FILTERED METRICS */
+
+  const filteredMetrics = useMemo(() => {
+
+    if (selectedBrand === "ALL")
+      return metrics
+
+    const totalLots = filteredLots.length
+
+    const totalValue =
+      filteredLots.reduce((a, b) => a + (b.price || 0), 0)
+
+    const avgPrice =
+      totalLots > 0 ? totalValue / totalLots : 0
+
+    return {
+      total_lots: totalLots,
+      total_value: totalValue,
+      avg_price: avgPrice,
+      top_brand: selectedBrand
+    }
+
+  }, [metrics, filteredLots, selectedBrand])
+
 
 
   return (
@@ -78,8 +137,44 @@ function App() {
 
       <h1>Watch Demand Index — Auction Results</h1>
 
+
+      {/* BRAND FILTER DROPDOWN */}
+
+      <div style={{ marginBottom: "20px" }}>
+
+        <label style={{ fontWeight: "bold" }}>
+          Filter by Brand:
+        </label>
+
+        <select
+          value={selectedBrand}
+          onChange={(e) =>
+            setSelectedBrand(e.target.value)
+          }
+          style={{
+            marginLeft: "10px",
+            padding: "6px",
+            fontSize: "14px"
+          }}
+        >
+
+          <option value="ALL">All Brands</option>
+
+          {brandIndex.map(b => (
+            <option key={b.brand} value={b.brand}>
+              {b.brand}
+            </option>
+          ))}
+
+        </select>
+
+      </div>
+
+
+
       {/* METRICS */}
-      {metrics && (
+
+      {filteredMetrics && (
 
         <div style={{
           display: "flex",
@@ -87,21 +182,28 @@ function App() {
           marginBottom: "30px"
         }}>
 
-          <Card title="Total Lots" value={metrics.total_lots} />
+          <Card
+            title="Total Lots"
+            value={filteredMetrics.total_lots}
+          />
 
           <Card
             title="Average Price"
-            value={formatCurrency(Math.round(metrics.avg_price))}
+            value={formatCurrency(
+              Math.round(filteredMetrics.avg_price)
+            )}
           />
 
           <Card
             title="Total Value"
-            value={formatCurrency(Math.round(metrics.total_value))}
+            value={formatCurrency(
+              Math.round(filteredMetrics.total_value)
+            )}
           />
 
           <Card
-            title="Top Brand"
-            value={metrics.top_brand}
+            title="Selected Brand"
+            value={selectedBrand}
           />
 
         </div>
@@ -111,6 +213,7 @@ function App() {
 
 
       {/* BRAND TABLE */}
+
       <ChartCard title="Brand Demand Index">
 
         <table border="1" cellPadding="8" width="100%">
@@ -145,8 +248,9 @@ function App() {
 
         </table>
 
-        {brandIndex.length > 5 && (
-          <button onClick={() => setShowAllBrands(!showAllBrands)}
+        {filteredBrandIndex.length > 5 && (
+          <button
+            onClick={() => setShowAllBrands(!showAllBrands)}
             style={buttonStyle}>
             {showAllBrands ? "Show Less" : "Show All Brands"}
           </button>
@@ -157,17 +261,18 @@ function App() {
 
 
       {/* BAR CHART — TOTAL VALUE */}
+
       <ChartCard title="Watch Demand Index (Total Value by Brand)">
 
         <ResponsiveContainer width="100%" height={500}>
 
           <BarChart
-            data={brandIndex}
+            data={filteredBrandIndex}
             margin={{
               top: 20,
               right: 30,
               left: 20,
-              bottom: 50   // increased
+              bottom: 50
             }}
           >
 
@@ -178,8 +283,8 @@ function App() {
               interval={0}
               angle={-35}
               textAnchor="end"
-              height={160}        // increased
-              tickMargin={25}     // CRITICAL FIX
+              height={160}
+              tickMargin={25}
               tick={{ fontSize: 12 }}
             />
 
@@ -189,7 +294,7 @@ function App() {
 
             <Bar dataKey="total_value" radius={[6,6,0,0]}>
 
-              {brandIndex.map((entry, index) => (
+              {filteredBrandIndex.map((entry, index) => (
                 <Cell
                   key={entry.brand}
                   fill={COLORS[index % COLORS.length]}
@@ -207,17 +312,18 @@ function App() {
 
 
       {/* BAR CHART — AVG PRICE */}
+
       <ChartCard title="Average Price by Brand">
 
         <ResponsiveContainer width="100%" height={500}>
 
           <BarChart
-            data={brandIndex}
+            data={filteredBrandIndex}
             margin={{
               top: 20,
               right: 30,
               left: 20,
-              bottom: 50   // increased
+              bottom: 50
             }}
           >
 
@@ -228,8 +334,8 @@ function App() {
               interval={0}
               angle={-35}
               textAnchor="end"
-              height={160}        // increased
-              tickMargin={25}     // CRITICAL FIX
+              height={160}
+              tickMargin={25}
               tick={{ fontSize: 12 }}
             />
 
@@ -239,7 +345,7 @@ function App() {
 
             <Bar dataKey="avg_price">
 
-              {brandIndex.map((entry, index) => (
+              {filteredBrandIndex.map((entry, index) => (
                 <Cell
                   key={entry.brand}
                   fill={COLORS[index % COLORS.length]}
@@ -257,6 +363,7 @@ function App() {
 
 
       {/* PIE CHART */}
+
       <ChartCard title="Market Share by Brand">
 
         <ResponsiveContainer width="100%" height={500}>
@@ -264,7 +371,7 @@ function App() {
           <PieChart>
 
             <Pie
-              data={brandIndex}
+              data={filteredBrandIndex}
               dataKey="total_value"
               nameKey="brand"
               cx="50%"
@@ -274,7 +381,7 @@ function App() {
               paddingAngle={2}
             >
 
-              {brandIndex.map((entry, index) => (
+              {filteredBrandIndex.map((entry, index) => (
                 <Cell
                   key={entry.brand}
                   fill={COLORS[index % COLORS.length]}
@@ -285,7 +392,6 @@ function App() {
 
             <Tooltip formatter={(v) => formatCurrency(v)} />
 
-            {/* FIXED LEGEND */}
             <Legend
               verticalAlign="bottom"
               align="center"
@@ -306,6 +412,7 @@ function App() {
 
 
       {/* LOT TABLE */}
+
       <ChartCard title="Auction Lots">
 
         <table border="1" cellPadding="8" width="100%">
@@ -342,7 +449,7 @@ function App() {
 
         </table>
 
-        {lots.length > 10 && (
+        {filteredLots.length > 10 && (
           <button
             onClick={() => setShowAllLots(!showAllLots)}
             style={buttonStyle}
@@ -358,6 +465,7 @@ function App() {
 
   )
 }
+
 
 
 const buttonStyle = {
