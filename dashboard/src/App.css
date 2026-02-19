@@ -1,0 +1,29 @@
+body {
+  margin: 0;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+
+  background-color: #f3f4f6;
+  color: #111827;   /* DARK TEXT */
+}
+
+h1, h2, h3 {
+  color: #111827;
+}
+
+table {
+  color: #111827;
+}
+
+th {
+  color: #374151;
+}
+
+td {
+  color: #111827;
+}
