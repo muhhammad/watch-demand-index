@@ -5,6 +5,14 @@ import random
 import psycopg2
 from datetime import datetime, UTC
 
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load .env from project root
+env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(env_path)
+
 from playwright.sync_api import sync_playwright, TimeoutError
 
 
@@ -27,11 +35,11 @@ print("Using database:", DB_PATH)
 def init_db():
 
     conn = psycopg2.connect(
-        host="localhost",
-        port=5432,
-        database="watchdb",
-        user="watchuser",
-        password="watchpass"  # change to your real password
+        host=os.getenv("DB_HOST"),
+        port=int(os.getenv("DB_PORT")),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD")
     )
 
     conn.autocommit = False
