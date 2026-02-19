@@ -22,6 +22,9 @@ const COLORS = [
   "#9333ea",
   "#0891b2",
   "#f97316",
+  "#14b8a6",
+  "#be123c",
+  "#4338ca",
 ]
 
 const formatCurrency = (value) =>
@@ -30,11 +33,15 @@ const formatCurrency = (value) =>
 const formatMillions = (value) =>
   "CHF " + (value / 1000000).toFixed(2) + "M"
 
+
 function App() {
 
   const [lots, setLots] = useState([])
   const [metrics, setMetrics] = useState(null)
   const [brandIndex, setBrandIndex] = useState([])
+
+  const [showAllLots, setShowAllLots] = useState(false)
+  const [showAllBrands, setShowAllBrands] = useState(false)
 
   useEffect(() => {
 
@@ -52,26 +59,30 @@ function App() {
 
   }, [])
 
+  const visibleLots = showAllLots ? lots : lots.slice(0, 10)
+
+  const visibleBrands = showAllBrands
+    ? brandIndex
+    : brandIndex.slice(0, 5)
+
+
   return (
 
     <div style={{
       padding: "30px",
       background: "#f3f4f6",
       minHeight: "100vh",
-      color: "#111827"
+      color: "#111"
     }}>
 
-      <h1 style={{ marginBottom: "20px" }}>
-        Watch Demand Index — Auction Results
-      </h1>
+
+      <h1>Watch Demand Index — Auction Results</h1>
 
       {/* METRICS */}
-
       {metrics && (
 
         <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          display: "flex",
           gap: "20px",
           marginBottom: "30px"
         }}>
@@ -88,49 +99,101 @@ function App() {
             value={formatCurrency(Math.round(metrics.total_value))}
           />
 
-          <Card title="Top Brand" value={metrics.top_brand} />
+          <Card
+            title="Top Brand"
+            value={metrics.top_brand}
+          />
 
         </div>
 
       )}
 
-      {/* BAR CHART */}
 
+
+      {/* BRAND TABLE */}
+      <ChartCard title="Brand Demand Index">
+
+        <table border="1" cellPadding="8" width="100%">
+
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Brand</th>
+              <th>Total Lots</th>
+              <th>Average Price</th>
+              <th>Total Value</th>
+              <th>Demand Index</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            {visibleBrands.map((brand, i) => (
+
+              <tr key={brand.brand}>
+                <td>{i + 1}</td>
+                <td>{brand.brand}</td>
+                <td>{brand.total_lots}</td>
+                <td>{formatCurrency(Math.round(brand.avg_price))}</td>
+                <td>{formatCurrency(Math.round(brand.total_value))}</td>
+                <td><b>{brand.demand_index}</b></td>
+              </tr>
+
+            ))}
+
+          </tbody>
+
+        </table>
+
+        {brandIndex.length > 5 && (
+          <button onClick={() => setShowAllBrands(!showAllBrands)}
+            style={buttonStyle}>
+            {showAllBrands ? "Show Less" : "Show All Brands"}
+          </button>
+        )}
+
+      </ChartCard>
+
+
+
+      {/* BAR CHART — TOTAL VALUE */}
       <ChartCard title="Watch Demand Index (Total Value by Brand)">
 
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={500}>
 
           <BarChart
             data={brandIndex}
-            margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+            margin={{
+              top: 20,
+              right: 30,
+              left: 20,
+              bottom: 50   // increased
+            }}
           >
 
             <CartesianGrid strokeDasharray="3 3" />
 
             <XAxis
               dataKey="brand"
-              angle={-30}
+              interval={0}
+              angle={-35}
               textAnchor="end"
-              height={80}
+              height={160}        // increased
+              tickMargin={25}     // CRITICAL FIX
+              tick={{ fontSize: 12 }}
             />
 
             <YAxis tickFormatter={formatMillions} />
 
-            <Tooltip formatter={formatCurrency} />
+            <Tooltip formatter={(v) => formatCurrency(v)} />
 
-            <Bar
-              dataKey="total_value"
-              radius={[6, 6, 0, 0]}
-              animationDuration={800}
-            >
+            <Bar dataKey="total_value" radius={[6,6,0,0]}>
 
               {brandIndex.map((entry, index) => (
-
                 <Cell
                   key={entry.brand}
                   fill={COLORS[index % COLORS.length]}
                 />
-
               ))}
 
             </Bar>
@@ -142,8 +205,58 @@ function App() {
       </ChartCard>
 
 
-      {/* PIE CHART */}
 
+      {/* BAR CHART — AVG PRICE */}
+      <ChartCard title="Average Price by Brand">
+
+        <ResponsiveContainer width="100%" height={500}>
+
+          <BarChart
+            data={brandIndex}
+            margin={{
+              top: 20,
+              right: 30,
+              left: 20,
+              bottom: 50   // increased
+            }}
+          >
+
+            <CartesianGrid strokeDasharray="3 3" />
+
+            <XAxis
+              dataKey="brand"
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={160}        // increased
+              tickMargin={25}     // CRITICAL FIX
+              tick={{ fontSize: 12 }}
+            />
+
+            <YAxis tickFormatter={formatMillions} />
+
+            <Tooltip formatter={(v) => formatCurrency(v)} />
+
+            <Bar dataKey="avg_price">
+
+              {brandIndex.map((entry, index) => (
+                <Cell
+                  key={entry.brand}
+                  fill={COLORS[index % COLORS.length]}
+                />
+              ))}
+
+            </Bar>
+
+          </BarChart>
+
+        </ResponsiveContainer>
+
+      </ChartCard>
+
+
+
+      {/* PIE CHART */}
       <ChartCard title="Market Share by Brand">
 
         <ResponsiveContainer width="100%" height={500}>
@@ -155,29 +268,34 @@ function App() {
               dataKey="total_value"
               nameKey="brand"
               cx="50%"
-              cy="50%"
-              outerRadius={160}
+              cy="45%"
+              outerRadius={140}
               innerRadius={60}
               paddingAngle={2}
-              label={({ percent }) =>
-                `${(percent * 100).toFixed(1)}%`
-              }
             >
 
               {brandIndex.map((entry, index) => (
-
                 <Cell
                   key={entry.brand}
                   fill={COLORS[index % COLORS.length]}
                 />
-
               ))}
 
             </Pie>
 
-            <Tooltip formatter={formatCurrency} />
+            <Tooltip formatter={(v) => formatCurrency(v)} />
 
-            <Legend verticalAlign="bottom" />
+            {/* FIXED LEGEND */}
+            <Legend
+              verticalAlign="bottom"
+              align="center"
+              layout="horizontal"
+              wrapperStyle={{
+                maxHeight: "120px",
+                overflowY: "auto",
+                fontSize: "12px"
+              }}
+            />
 
           </PieChart>
 
@@ -186,106 +304,36 @@ function App() {
       </ChartCard>
 
 
-      {/* BRAND TABLE */}
-
-      <ChartCard title="Brand Demand Index">
-
-        <table style={tableStyle}>
-
-          <thead>
-
-            <tr>
-
-              <th style={thStyle}>Rank</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Lots</th>
-              <th style={thStyle}>Avg Price</th>
-              <th style={thStyle}>Total Value</th>
-              <th style={thStyle}>Demand Index</th>
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            {brandIndex.map((brand, i) => (
-
-              <tr key={brand.brand}>
-
-                <td style={tdStyle}>{i + 1}</td>
-
-                <td style={tdStyle}>{brand.brand}</td>
-
-                <td style={tdStyle}>{brand.total_lots}</td>
-
-                <td style={tdStyle}>
-                  {formatCurrency(Math.round(brand.avg_price))}
-                </td>
-
-                <td style={tdStyle}>
-                  {formatCurrency(Math.round(brand.total_value))}
-                </td>
-
-                <td style={tdStyle}>
-                  <b>{brand.demand_index}</b>
-                </td>
-
-              </tr>
-
-            ))}
-
-          </tbody>
-
-        </table>
-
-      </ChartCard>
-
 
       {/* LOT TABLE */}
-
       <ChartCard title="Auction Lots">
 
-        <table style={tableStyle}>
+        <table border="1" cellPadding="8" width="100%">
 
           <thead>
-
             <tr>
-
-              <th style={thStyle}>Auction</th>
-              <th style={thStyle}>Lot</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Reference</th>
-              <th style={thStyle}>Model</th>
-              <th style={thStyle}>Price</th>
-              <th style={thStyle}>Date</th>
-
+              <th>Auction</th>
+              <th>Lot</th>
+              <th>Brand</th>
+              <th>Reference</th>
+              <th>Model</th>
+              <th>Price</th>
+              <th>Date</th>
             </tr>
-
           </thead>
 
           <tbody>
 
-            {lots.map(lot => (
+            {visibleLots.map(lot => (
 
               <tr key={lot.id}>
-
-                <td style={tdStyle}>{lot.auction_house}</td>
-
-                <td style={tdStyle}>{lot.lot}</td>
-
-                <td style={tdStyle}>{lot.brand}</td>
-
-                <td style={tdStyle}>{lot.reference_code}</td>
-
-                <td style={tdStyle}>{lot.model}</td>
-
-                <td style={tdStyle}>
-                  {formatCurrency(lot.price)}
-                </td>
-
-                <td style={tdStyle}>{lot.auction_date}</td>
-
+                <td>{lot.auction_house}</td>
+                <td>{lot.lot}</td>
+                <td>{lot.brand}</td>
+                <td>{lot.reference_code}</td>
+                <td>{lot.model}</td>
+                <td>{formatCurrency(lot.price)}</td>
+                <td>{lot.auction_date}</td>
               </tr>
 
             ))}
@@ -294,101 +342,71 @@ function App() {
 
         </table>
 
+        {lots.length > 10 && (
+          <button
+            onClick={() => setShowAllLots(!showAllLots)}
+            style={buttonStyle}
+          >
+            {showAllLots ? "Show Less" : "Show All Lots"}
+          </button>
+        )}
+
       </ChartCard>
 
-    </div>
-
-  )
-
-}
-
-
-/* COMPONENTS */
-
-function Card({ title, value }) {
-
-  return (
-
-    <div style={cardStyle}>
-
-      <div style={{ fontSize: "14px", color: "#6b7280" }}>
-        {title}
-      </div>
-
-      <div style={{
-        fontSize: "24px",
-        fontWeight: "bold",
-        marginTop: "5px"
-      }}>
-        {value}
-      </div>
 
     </div>
 
   )
-
 }
+
+
+const buttonStyle = {
+  marginTop: "10px",
+  padding: "8px 16px",
+  borderRadius: "6px",
+  border: "none",
+  background: "#2563eb",
+  color: "white",
+  cursor: "pointer"
+}
+
 
 function ChartCard({ title, children }) {
 
   return (
-
-    <div style={chartCardStyle}>
-
-      <h2 style={{ marginBottom: "15px" }}>
-        {title}
-      </h2>
-
+    <div style={{
+      background: "white",
+      padding: "20px",
+      borderRadius: "10px",
+      marginBottom: "30px",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
+    }}>
+      <h2>{title}</h2>
       {children}
-
     </div>
-
   )
-
 }
 
 
-/* STYLES */
+function Card({ title, value }) {
 
-const cardStyle = {
-
-  background: "white",
-  padding: "20px",
-  borderRadius: "10px",
-  boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
-
-}
-
-const chartCardStyle = {
-
-  background: "white",
-  padding: "20px",
-  borderRadius: "10px",
-  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-  marginBottom: "30px"
-
-}
-
-const tableStyle = {
-
-  width: "100%",
-  borderCollapse: "collapse"
-
-}
-
-const thStyle = {
-
-  textAlign: "left",
-  padding: "10px",
-  borderBottom: "2px solid #e5e7eb"
-
-}
-
-const tdStyle = {
-
-  padding: "10px",
-  borderBottom: "1px solid #e5e7eb"
-
+  return (
+    <div style={{
+      background: "white",
+      padding: "15px",
+      borderRadius: "10px",
+      minWidth: "180px",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
+    }}>
+      <h3>{title}</h3>
+      <p style={{
+        fontSize: "20px",
+        fontWeight: "bold"
+      }}>
+        {value}
+      </p>
+    </div>
+  )
 }
 
 
