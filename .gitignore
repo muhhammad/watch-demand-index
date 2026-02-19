@@ -13,3 +13,5 @@ venv/
 
 # Playwright session files
 playwright_session/
+
+.env

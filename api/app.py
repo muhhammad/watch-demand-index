@@ -2,12 +2,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load .env from project root
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(env_path)
+
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "watchdb",
-    "user": "watchuser",
-    "password": "watchpass"
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT")),
+    "database": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD")
 }
 
 app = FastAPI()
