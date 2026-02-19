@@ -1,0 +1,24 @@
+# FastAPI backend
+fastapi
+uvicorn[standard]
+
+# Database
+psycopg2-binary
+
+# Environment variables
+python-dotenv
+
+# Data handling
+pydantic
+
+# HTTP requests (optional but useful)
+requests
+
+# Playwright (collectors)
+playwright
+
+# Optional: async support improvements
+anyio
+
+# Optional: JSON handling performance
+orjson
