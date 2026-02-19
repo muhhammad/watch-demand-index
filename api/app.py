@@ -1,7 +1,10 @@
 import os
+from dotenv import load_dotenv
 import psycopg2
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
 
 # Railway provides this automatically
 DATABASE_URL = os.getenv("DATABASE_URL")

@@ -15,3 +15,5 @@ venv/
 playwright_session/
 
 .env
+
+node_modules/

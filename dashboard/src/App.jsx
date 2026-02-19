@@ -48,17 +48,19 @@ function App() {
 
   useEffect(() => {
 
-    fetch("http://127.0.0.1:8000/auction_lots")
-      .then(res => res.json())
-      .then(data => setLots(data))
+    const API_BASE = "https://web-production-a02be.up.railway.app"
 
-    fetch("http://127.0.0.1:8000/metrics")
+    fetch(`${API_BASE}/auction_lots`)
       .then(res => res.json())
-      .then(data => setMetrics(data))
+      .then(setLots)
 
-    fetch("http://127.0.0.1:8000/brand_index")
+    fetch(`${API_BASE}/metrics`)
       .then(res => res.json())
-      .then(data => setBrandIndex(data))
+      .then(setMetrics)
+
+    fetch(`${API_BASE}/brand_index`)
+      .then(res => res.json())
+      .then(setBrandIndex)
 
   }, [])
 
