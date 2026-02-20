@@ -67,10 +67,6 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState(null)
 
 
-  // ===============================
-  // LOAD DATA
-  // ===============================
-
   useEffect(() => {
 
     async function loadData() {
@@ -115,10 +111,6 @@ function App() {
   }, [])
 
 
-  // ===============================
-  // FILTERING
-  // ===============================
-
   const brands = ["ALL", ...brandIndex.map(b => b.brand)]
 
   const filteredLots =
@@ -127,43 +119,18 @@ function App() {
       : lots.filter(l => l.brand === selectedBrand)
 
   const visibleLots =
-    showAllLots
-      ? filteredLots
-      : filteredLots.slice(0, 10)
+    showAllLots ? filteredLots : filteredLots.slice(0, 10)
 
   const visibleBrands =
-    showAllBrands
-      ? brandIndex
-      : brandIndex.slice(0, 5)
+    showAllBrands ? brandIndex : brandIndex.slice(0, 5)
 
-
-  // ===============================
-  // LOADING STATE
-  // ===============================
 
   if (loading)
-    return (
-      <CenteredMessage>
-        Loading Watch Demand Index...
-      </CenteredMessage>
-    )
-
-
-  // ===============================
-  // ERROR STATE
-  // ===============================
+    return <CenteredMessage>Loading Watch Demand Index...</CenteredMessage>
 
   if (error)
-    return (
-      <CenteredMessage>
-        Error: {error}
-      </CenteredMessage>
-    )
+    return <CenteredMessage>Error: {error}</CenteredMessage>
 
-
-  // ===============================
-  // UI
-  // ===============================
 
   return (
 
@@ -173,90 +140,136 @@ function App() {
 
 
       {/* SCOREBOARD */}
-      <ChartCard title="Demand Index Scoreboard">
-
+      <ChartCard title="Demand Index Scorecard">
         <Scoreboard brandIndex={brandIndex} />
-
       </ChartCard>
 
 
       {/* METRICS */}
-      {metrics && (
-
-        <MetricsRow metrics={metrics} />
-
-      )}
+      {metrics &&
+        <MetricsRow metrics={metrics}/>
+      }
 
 
-      {/* BRAND FILTER */}
-      <ChartCard title="Filter">
+      {/* FILTER */}
+      <ChartCard title="Filter by Brand">
 
         <select
           value={selectedBrand}
           onChange={(e) => setSelectedBrand(e.target.value)}
           style={dropdownStyle}
         >
+
           {brands.map(b =>
-            <option key={b} value={b}>{b}</option>
+            <option key={b}>{b}</option>
           )}
+
         </select>
 
       </ChartCard>
 
 
       {/* BRAND TABLE */}
-      <BrandTable
-        visibleBrands={visibleBrands}
-        brandIndex={brandIndex}
-        showAllBrands={showAllBrands}
-        setShowAllBrands={setShowAllBrands}
-      />
+      <ChartCard title="Brand Demand Index">
+
+        <table style={tableStyle}>
+
+          <thead>
+
+            <tr>
+              <th style={thStyle}>Rank</th>
+              <th style={thStyle}>Brand</th>
+              <th style={thStyle}>Lots</th>
+              <th style={thStyle}>Avg Price</th>
+              <th style={thStyle}>Total Value</th>
+              <th style={thStyle}>Demand Index</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {visibleBrands.map((b,i)=>
+
+              <tr key={b.brand}>
+                <td style={tdStyle}>{i+1}</td>
+                <td style={tdStyle}>{b.brand}</td>
+                <td style={tdStyle}>{b.total_lots}</td>
+                <td style={tdStyle}>{formatCurrency(b.avg_price)}</td>
+                <td style={tdStyle}>{formatCurrency(b.total_value)}</td>
+                <td style={tdStyle}><b>{b.demand_index}</b></td>
+              </tr>
+
+            )}
+
+          </tbody>
+
+        </table>
+
+        {brandIndex.length > 5 &&
+          <button style={buttonStyle}
+            onClick={()=>setShowAllBrands(!showAllBrands)}>
+            {showAllBrands?"Show Less":"Show All"}
+          </button>
+        }
+
+      </ChartCard>
 
 
-      {/* BAR CHART TOTAL VALUE */}
-      <BrandValueChart brandIndex={brandIndex} />
+      {/* VALUE CHART */}
+      <BrandValueChart brandIndex={brandIndex}/>
 
 
       {/* AVG PRICE CHART */}
-      <BrandAvgChart brandIndex={brandIndex} />
+      <BrandAvgChart brandIndex={brandIndex}/>
 
 
       {/* PIE CHART */}
-      <BrandPieChart brandIndex={brandIndex} />
+      <BrandPieChart brandIndex={brandIndex}/>
 
 
       {/* LOT TABLE */}
-      <LotsTable
-        visibleLots={visibleLots}
-        filteredLots={filteredLots}
-        showAllLots={showAllLots}
-        setShowAllLots={setShowAllLots}
-      />
+      <ChartCard title="Auction Lots">
 
-    </div>
+        <table style={tableStyle}>
 
-  )
+          <thead>
+            <tr>
+              <th style={thStyle}>Auction</th>
+              <th style={thStyle}>Lot</th>
+              <th style={thStyle}>Brand</th>
+              <th style={thStyle}>Model</th>
+              <th style={thStyle}>Price</th>
+            </tr>
+          </thead>
 
-}
+          <tbody>
 
+            {visibleLots.map((lot,i)=>
 
-// ===============================
-// HEADER
-// ===============================
+              <tr key={i}>
+                <td style={tdStyle}>{lot.auction_house}</td>
+                <td style={tdStyle}>{lot.lot}</td>
+                <td style={tdStyle}>{lot.brand}</td>
+                <td style={tdStyle}>{lot.model}</td>
+                <td style={tdStyle}>{formatCurrency(lot.price)}</td>
+              </tr>
 
-function Header({ lastUpdated }) {
+            )}
 
-  return (
+          </tbody>
 
-    <div style={{ marginBottom: 20 }}>
+        </table>
 
-      <h1>Watch Demand Index</h1>
+        {filteredLots.length > 10 &&
+          <button style={buttonStyle}
+            onClick={()=>setShowAllLots(!showAllLots)}>
+            {showAllLots?"Show Less":"Show All"}
+          </button>
+        }
 
-      {lastUpdated &&
-        <p style={{ color: "#666" }}>
-          Last updated: {lastUpdated.toLocaleString()}
-        </p>
-      }
+      </ChartCard>
+
 
     </div>
 
@@ -269,22 +282,17 @@ function Header({ lastUpdated }) {
 // SCOREBOARD
 // ===============================
 
-function Scoreboard({ brandIndex }) {
+function Scoreboard({brandIndex}){
 
-  const top = brandIndex.slice(0, 5)
+  const top = brandIndex.slice(0,5)
 
-  return (
+  return(
 
-    <div style={{
-      display: "flex",
-      gap: 20
-    }}>
+    <div style={{display:"flex",gap:20}}>
 
-      {top.map(b => (
+      {top.map(b=>
 
-        <div key={b.brand}
-          style={scoreCardStyle}
-        >
+        <div key={b.brand} style={scoreCardStyle}>
 
           <div>{b.brand}</div>
 
@@ -294,7 +302,7 @@ function Scoreboard({ brandIndex }) {
 
         </div>
 
-      ))}
+      )}
 
     </div>
 
@@ -304,138 +312,28 @@ function Scoreboard({ brandIndex }) {
 
 
 // ===============================
-// METRICS ROW
+// CHARTS
 // ===============================
 
-function MetricsRow({ metrics }) {
+function BrandValueChart({brandIndex}){
 
-  return (
-
-    <div style={{
-      display: "flex",
-      gap: 20,
-      marginBottom: 30
-    }}>
-
-      <Card title="Total Lots"
-        value={metrics.total_lots}
-      />
-
-      <Card title="Average Price"
-        value={formatCurrency(metrics.avg_price)}
-      />
-
-      <Card title="Total Value"
-        value={formatCurrency(metrics.total_value)}
-      />
-
-      <Card title="Top Brand"
-        value={metrics.top_brand}
-      />
-
-    </div>
-
-  )
-
-}
-
-
-// ===============================
-// BRAND TABLE COMPONENT
-// ===============================
-
-function BrandTable({
-  visibleBrands,
-  brandIndex,
-  showAllBrands,
-  setShowAllBrands
-}) {
-
-  return (
-
-    <ChartCard title="Brand Demand Index">
-
-      <table border="1" cellPadding="8" width="100%">
-
-        <thead>
-          <tr>
-            <th>Rank</th>
-            <th>Brand</th>
-            <th>Total Lots</th>
-            <th>Average Price</th>
-            <th>Total Value</th>
-            <th>Demand Index</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {visibleBrands.map((b, i) => (
-
-            <tr key={b.brand}>
-              <td>{i + 1}</td>
-              <td>{b.brand}</td>
-              <td>{b.total_lots}</td>
-              <td>{formatCurrency(b.avg_price)}</td>
-              <td>{formatCurrency(b.total_value)}</td>
-              <td><b>{b.demand_index}</b></td>
-            </tr>
-
-          ))}
-
-        </tbody>
-
-      </table>
-
-      {brandIndex.length > 5 &&
-        <button style={buttonStyle}
-          onClick={() =>
-            setShowAllBrands(!showAllBrands)
-          }
-        >
-          {showAllBrands ? "Show Less" : "Show All"}
-        </button>
-      }
-
-    </ChartCard>
-
-  )
-
-}
-
-
-// ===============================
-// CHART COMPONENTS
-// ===============================
-
-function BrandValueChart({ brandIndex }) {
-
-  return (
+  return(
 
     <ChartCard title="Total Value by Brand">
 
       <ResponsiveContainer width="100%" height={500}>
 
-        <BarChart
-          data={brandIndex}
-          margin={{
-            top: 20,
-            right: 30,
-            left: 20,
-            bottom: 80
-          }}
-        >
+        <BarChart data={brandIndex}
+          margin={{top:20,right:30,left:20,bottom:80}}>
 
           <CartesianGrid strokeDasharray="3 3"/>
 
-          <XAxis
-            dataKey="brand"
-            interval={0}
+          <XAxis dataKey="brand"
             angle={-35}
-            textAnchor="end"
             height={160}
             tickMargin={30}
-          />
+            interval={0}
+            textAnchor="end"/>
 
           <YAxis tickFormatter={formatMillions}/>
 
@@ -445,8 +343,7 @@ function BrandValueChart({ brandIndex }) {
 
             {brandIndex.map((e,i)=>
               <Cell key={i}
-                fill={COLORS[i % COLORS.length]}
-              />
+                fill={COLORS[i%COLORS.length]}/>
             )}
 
           </Bar>
@@ -462,31 +359,25 @@ function BrandValueChart({ brandIndex }) {
 }
 
 
-function BrandAvgChart({ brandIndex }) {
+function BrandAvgChart({brandIndex}){
 
-  return (
+  return(
 
     <ChartCard title="Average Price by Brand">
 
       <ResponsiveContainer width="100%" height={500}>
 
-        <BarChart
-          data={brandIndex}
-          margin={{
-            top:20,right:30,left:20,bottom:80
-          }}
-        >
+        <BarChart data={brandIndex}
+          margin={{top:20,right:30,left:20,bottom:80}}>
 
           <CartesianGrid strokeDasharray="3 3"/>
 
-          <XAxis
-            dataKey="brand"
-            interval={0}
+          <XAxis dataKey="brand"
             angle={-35}
-            textAnchor="end"
             height={160}
             tickMargin={30}
-          />
+            interval={0}
+            textAnchor="end"/>
 
           <YAxis tickFormatter={formatMillions}/>
 
@@ -496,8 +387,7 @@ function BrandAvgChart({ brandIndex }) {
 
             {brandIndex.map((e,i)=>
               <Cell key={i}
-                fill={COLORS[i % COLORS.length]}
-              />
+                fill={COLORS[i%COLORS.length]}/>
             )}
 
           </Bar>
@@ -513,9 +403,9 @@ function BrandAvgChart({ brandIndex }) {
 }
 
 
-function BrandPieChart({ brandIndex }) {
+function BrandPieChart({brandIndex}){
 
-  return (
+  return(
 
     <ChartCard title="Market Share">
 
@@ -523,30 +413,24 @@ function BrandPieChart({ brandIndex }) {
 
         <PieChart>
 
-          <Pie
-            data={brandIndex}
+          <Pie data={brandIndex}
             dataKey="total_value"
             nameKey="brand"
             cx="50%"
             cy="45%"
             outerRadius={140}
-            innerRadius={60}
-          >
+            innerRadius={60}>
 
             {brandIndex.map((e,i)=>
               <Cell key={i}
-                fill={COLORS[i % COLORS.length]}
-              />
+                fill={COLORS[i%COLORS.length]}/>
             )}
 
           </Pie>
 
           <Tooltip formatter={formatCurrency}/>
 
-          <Legend
-            verticalAlign="bottom"
-            height={100}
-          />
+          <Legend verticalAlign="bottom" height={100}/>
 
         </PieChart>
 
@@ -560,92 +444,77 @@ function BrandPieChart({ brandIndex }) {
 
 
 // ===============================
-// LOT TABLE
+// UI
 // ===============================
 
-function LotsTable({
-  visibleLots,
-  filteredLots,
-  showAllLots,
-  setShowAllLots
-}) {
+function ChartCard({title,children}){
 
-  return (
+  return(
 
-    <ChartCard title="Auction Lots">
-
-      <table border="1" cellPadding="8" width="100%">
-
-        <thead>
-          <tr>
-            <th>Auction</th>
-            <th>Lot</th>
-            <th>Brand</th>
-            <th>Model</th>
-            <th>Price</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {visibleLots.map((lot,i)=>(
-            <tr key={i}>
-              <td>{lot.auction_house}</td>
-              <td>{lot.lot}</td>
-              <td>{lot.brand}</td>
-              <td>{lot.model}</td>
-              <td>{formatCurrency(lot.price)}</td>
-            </tr>
-          ))}
-
-        </tbody>
-
-      </table>
-
-      {filteredLots.length > 10 &&
-        <button style={buttonStyle}
-          onClick={()=>setShowAllLots(!showAllLots)}
-        >
-          {showAllLots?"Show Less":"Show All"}
-        </button>
-      }
-
-    </ChartCard>
+    <div style={cardStyle}>
+      <h2>{title}</h2>
+      {children}
+    </div>
 
   )
 
 }
 
 
-// ===============================
-// UI COMPONENTS
-// ===============================
-
-function ChartCard({title, children}){
+function MetricsRow({metrics}){
 
   return(
-    <div style={cardStyle}>
-      <h2>{title}</h2>
-      {children}
+
+    <div style={{display:"flex",gap:20,marginBottom:30}}>
+
+      <Card title="Total Lots" value={metrics.total_lots}/>
+      <Card title="Average Price" value={formatCurrency(metrics.avg_price)}/>
+      <Card title="Total Value" value={formatCurrency(metrics.total_value)}/>
+      <Card title="Top Brand" value={metrics.top_brand}/>
+
     </div>
+
   )
+
 }
 
 
 function Card({title,value}){
 
   return(
+
     <div style={metricCardStyle}>
       <h3>{title}</h3>
       <p style={metricValueStyle}>{value}</p>
     </div>
+
   )
+
+}
+
+
+function Header({lastUpdated}){
+
+  return(
+
+    <div style={{marginBottom:20}}>
+      <h1>Watch Demand Index</h1>
+      {lastUpdated &&
+        <p style={{color:"#666"}}>
+          Last updated: {lastUpdated.toLocaleString()}
+        </p>
+      }
+    </div>
+
+  )
+
 }
 
 
 function CenteredMessage({children}){
 
   return(
+
     <div style={{
       display:"flex",
       justifyContent:"center",
@@ -654,7 +523,9 @@ function CenteredMessage({children}){
     }}>
       {children}
     </div>
+
   )
+
 }
 
 
@@ -662,14 +533,17 @@ function CenteredMessage({children}){
 // STYLES
 // ===============================
 
-const containerStyle = {
+const containerStyle={
   padding:30,
   background:"#f3f4f6",
   minHeight:"100vh",
-  color:"#111"
+  color:"#111",
+  width:"100%",
+  maxWidth:"1400px",
+  margin:"0 auto"
 }
 
-const cardStyle = {
+const cardStyle={
   background:"white",
   padding:20,
   borderRadius:10,
@@ -677,7 +551,7 @@ const cardStyle = {
   boxShadow:"0 2px 6px rgba(0,0,0,0.1)"
 }
 
-const metricCardStyle = {
+const metricCardStyle={
   background:"white",
   padding:15,
   borderRadius:10,
@@ -685,17 +559,17 @@ const metricCardStyle = {
   boxShadow:"0 2px 6px rgba(0,0,0,0.1)"
 }
 
-const metricValueStyle = {
+const metricValueStyle={
   fontSize:20,
   fontWeight:"bold"
 }
 
-const dropdownStyle = {
+const dropdownStyle={
   padding:10,
   fontSize:16
 }
 
-const buttonStyle = {
+const buttonStyle={
   marginTop:10,
   padding:"8px 16px",
   background:"#2563eb",
@@ -705,7 +579,7 @@ const buttonStyle = {
   cursor:"pointer"
 }
 
-const scoreCardStyle = {
+const scoreCardStyle={
   background:"#2563eb",
   color:"white",
   padding:15,
@@ -714,9 +588,28 @@ const scoreCardStyle = {
   textAlign:"center"
 }
 
-const scoreValueStyle = {
+const scoreValueStyle={
   fontSize:28,
   fontWeight:"bold"
+}
+
+const tableStyle={
+  width:"100%",
+  borderCollapse:"collapse",
+  marginTop:"10px"
+}
+
+const thStyle={
+  border:"1px solid #e5e7eb",
+  padding:"10px",
+  textAlign:"left",
+  background:"#f9fafb",
+  fontWeight:"600"
+}
+
+const tdStyle={
+  border:"1px solid #e5e7eb",
+  padding:"10px"
 }
 
 
