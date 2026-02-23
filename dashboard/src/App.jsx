@@ -1,618 +1,450 @@
 import { useEffect, useState } from "react"
-
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip,
+  CartesianGrid, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
 } from "recharts"
 
 
-// ===============================
+// =====================================
 // CONFIG
-// ===============================
+// =====================================
 
+// API SERVICE URL (NOT dashboard URL)
 const API_BASE = "https://web-production-a02be.up.railway.app"
 
 const COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#dc2626",
-  "#ca8a04",
-  "#9333ea",
-  "#0891b2",
-  "#f97316",
-  "#14b8a6",
-  "#be123c",
-  "#4338ca",
+  "#2563eb", "#16a34a", "#dc2626", "#ca8a04",
+  "#9333ea", "#0891b2", "#f97316", "#14b8a6"
 ]
 
 
-// ===============================
+// =====================================
 // FORMATTERS
-// ===============================
+// =====================================
 
-const formatCurrency = (value) =>
-  value ? "CHF " + value.toLocaleString() : "-"
+const formatCurrency = v =>
+  v ? "CHF " + Number(v).toLocaleString() : "-"
 
-const formatMillions = (value) =>
-  "CHF " + (value / 1000000).toFixed(2) + "M"
+const formatPercent = v =>
+  v ? v.toFixed(1) + "%" : "-"
 
 
-// ===============================
-// MAIN COMPONENT
-// ===============================
+// =====================================
+// MAIN APP
+// =====================================
 
 function App() {
 
-  const [lots, setLots] = useState([])
-  const [metrics, setMetrics] = useState(null)
-  const [brandIndex, setBrandIndex] = useState([])
-
-  const [selectedBrand, setSelectedBrand] = useState("ALL")
-
-  const [showAllLots, setShowAllLots] = useState(false)
-  const [showAllBrands, setShowAllBrands] = useState(false)
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  const [lastUpdated, setLastUpdated] = useState(null)
-
-
-  useEffect(() => {
-
-    async function loadData() {
-
-      try {
-
-        setLoading(true)
-
-        const [lotsRes, metricsRes, brandRes] =
-          await Promise.all([
-            fetch(`${API_BASE}/auction_lots`),
-            fetch(`${API_BASE}/metrics`),
-            fetch(`${API_BASE}/brand_index`)
-          ])
-
-        if (!lotsRes.ok) throw new Error("API unavailable")
-
-        const lotsData = await lotsRes.json()
-        const metricsData = await metricsRes.json()
-        const brandData = await brandRes.json()
-
-        setLots(lotsData)
-        setMetrics(metricsData)
-        setBrandIndex(brandData)
-
-        setLastUpdated(new Date())
-
-      } catch (err) {
-
-        setError(err.message)
-
-      } finally {
-
-        setLoading(false)
-
-      }
-
-    }
-
-    loadData()
-
-  }, [])
-
-
-  const brands = ["ALL", ...brandIndex.map(b => b.brand)]
-
-  const filteredLots =
-    selectedBrand === "ALL"
-      ? lots
-      : lots.filter(l => l.brand === selectedBrand)
-
-  const visibleLots =
-    showAllLots ? filteredLots : filteredLots.slice(0, 10)
-
-  const visibleBrands =
-    showAllBrands ? brandIndex : brandIndex.slice(0, 5)
-
-
-  if (loading)
-    return <CenteredMessage>Loading Watch Demand Index...</CenteredMessage>
-
-  if (error)
-    return <CenteredMessage>Error: {error}</CenteredMessage>
-
+  const [page, setPage] = useState("index")
 
   return (
 
     <div style={containerStyle}>
 
-      <Header lastUpdated={lastUpdated} />
+      <Header page={page} setPage={setPage} />
+
+      {page === "index" && <DemandIndexPage />}
+
+      {page === "arbitrage" && <ArbitragePage />}
+
+    </div>
+
+  )
+}
 
 
-      {/* SCOREBOARD */}
-      <ChartCard title="Demand Index Scorecard">
-        <Scoreboard brandIndex={brandIndex} />
-      </ChartCard>
+// =====================================
+// HEADER / NAV
+// =====================================
+
+function Header({ page, setPage }) {
+
+  return (
+
+    <div style={headerStyle}>
+
+      <div style={titleStyle}>
+        Watch Demand Intelligence
+      </div>
+
+      <div style={navStyle}>
+
+        <button
+          onClick={() => setPage("index")}
+          style={page === "index"
+            ? activeNavStyle
+            : navButtonStyle}
+        >
+          Market Index
+        </button>
+
+        <button
+          onClick={() => setPage("arbitrage")}
+          style={page === "arbitrage"
+            ? activeNavStyle
+            : navButtonStyle}
+        >
+          Arbitrage Finder
+        </button>
+
+      </div>
+
+    </div>
+
+  )
+}
 
 
-      {/* METRICS */}
+// =====================================
+// DEMAND INDEX PAGE
+// =====================================
+
+function DemandIndexPage() {
+
+  const [brandIndex, setBrandIndex] = useState([])
+  const [metrics, setMetrics] = useState(null)
+
+  useEffect(() => {
+
+    fetch(API_BASE + "/brand_index")
+      .then(r => r.json())
+      .then(setBrandIndex)
+
+    fetch(API_BASE + "/metrics")
+      .then(r => r.json())
+      .then(setMetrics)
+
+  }, [])
+
+  return (
+
+    <>
+
       {metrics &&
-        <MetricsRow metrics={metrics}/>
+        <MetricsRow metrics={metrics} />
       }
 
+      <ChartCard title="Total Value by Brand">
 
-      {/* FILTER */}
-      <ChartCard title="Filter by Brand">
+        <ResponsiveContainer width="100%" height={500}>
 
-        <select
-          value={selectedBrand}
-          onChange={(e) => setSelectedBrand(e.target.value)}
-          style={dropdownStyle}
-        >
+          <BarChart
+            data={brandIndex}
+            margin={{
+              top: 20,
+              right: 30,
+              left: 20,
+              bottom: 80
+            }}
+          >
 
-          {brands.map(b =>
-            <option key={b}>{b}</option>
-          )}
+            <CartesianGrid strokeDasharray="3 3"/>
 
-        </select>
+            <XAxis
+              dataKey="brand"
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={160}
+              tickMargin={30}
+            />
+
+            <YAxis/>
+
+            <Tooltip formatter={formatCurrency}/>
+
+            <Bar dataKey="total_value">
+
+              {brandIndex.map((e,i)=>
+                <Cell key={i}
+                  fill={COLORS[i % COLORS.length]}
+                />
+              )}
+
+            </Bar>
+
+          </BarChart>
+
+        </ResponsiveContainer>
 
       </ChartCard>
 
 
-      {/* BRAND TABLE */}
-      <ChartCard title="Brand Demand Index">
+      <ChartCard title="Market Share">
 
-        <table style={tableStyle}>
+        <ResponsiveContainer width="100%" height={500}>
 
-          <thead>
+          <PieChart>
 
-            <tr>
-              <th style={thStyle}>Rank</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Lots</th>
-              <th style={thStyle}>Avg Price</th>
-              <th style={thStyle}>Total Value</th>
-              <th style={thStyle}>Demand Index</th>
+            <Pie
+              data={brandIndex}
+              dataKey="total_value"
+              nameKey="brand"
+              cx="50%"
+              cy="45%"
+              outerRadius={140}
+            >
+
+              {brandIndex.map((e,i)=>
+                <Cell key={i}
+                  fill={COLORS[i % COLORS.length]}
+                />
+              )}
+
+            </Pie>
+
+            <Tooltip formatter={formatCurrency}/>
+
+            <Legend verticalAlign="bottom"/>
+
+          </PieChart>
+
+        </ResponsiveContainer>
+
+      </ChartCard>
+
+    </>
+
+  )
+}
+
+
+// =====================================
+// ARBITRAGE PAGE
+// =====================================
+
+function ArbitragePage() {
+
+  const [data, setData] = useState([])
+
+  useEffect(() => {
+
+    fetch(API_BASE + "/arbitrage")
+      .then(r => r.json())
+      .then(setData)
+
+  }, [])
+
+  return (
+
+    <ChartCard title="Best Arbitrage Opportunities">
+
+      <table style={tableStyle}>
+
+        <thead>
+
+          <tr>
+            <th style={thStyle}>Brand</th>
+            <th style={thStyle}>Reference</th>
+            <th style={thStyle}>Dealer Price</th>
+            <th style={thStyle}>Market Median</th>
+            <th style={thStyle}>Profit</th>
+            <th style={thStyle}>Grade</th>
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          {data.map((row, i) => (
+
+            <tr key={i}>
+
+              <td style={tdStyle}>{row.brand}</td>
+
+              <td style={tdStyle}>{row.reference}</td>
+
+              <td style={tdStyle}>
+                {formatCurrency(row.dealer_price)}
+              </td>
+
+              <td style={tdStyle}>
+                {formatCurrency(row.median_price)}
+              </td>
+
+              <td style={{
+                ...tdStyle,
+                color:
+                  row.profit_percent > 10
+                    ? "green"
+                    : "black"
+              }}>
+                {formatPercent(row.profit_percent)}
+              </td>
+
+              <td style={tdStyle}>
+                {row.opportunity_grade}
+              </td>
+
             </tr>
 
-          </thead>
+          ))}
 
-          <tbody>
+        </tbody>
 
-            {visibleBrands.map((b,i)=>
+      </table>
 
-              <tr key={b.brand}>
-                <td style={tdStyle}>{i+1}</td>
-                <td style={tdStyle}>{b.brand}</td>
-                <td style={tdStyle}>{b.total_lots}</td>
-                <td style={tdStyle}>{formatCurrency(b.avg_price)}</td>
-                <td style={tdStyle}>{formatCurrency(b.total_value)}</td>
-                <td style={tdStyle}><b>{b.demand_index}</b></td>
-              </tr>
+    </ChartCard>
 
-            )}
-
-          </tbody>
-
-        </table>
-
-        {brandIndex.length > 5 &&
-          <button style={buttonStyle}
-            onClick={()=>setShowAllBrands(!showAllBrands)}>
-            {showAllBrands?"Show Less":"Show All"}
-          </button>
-        }
-
-      </ChartCard>
+  )
+}
 
 
-      {/* VALUE CHART */}
-      <BrandValueChart brandIndex={brandIndex}/>
+// =====================================
+// METRICS
+// =====================================
 
+function MetricsRow({ metrics }) {
 
-      {/* AVG PRICE CHART */}
-      <BrandAvgChart brandIndex={brandIndex}/>
+  return (
 
+    <div style={metricsRowStyle}>
 
-      {/* PIE CHART */}
-      <BrandPieChart brandIndex={brandIndex}/>
+      <MetricCard
+        title="Total Lots"
+        value={metrics.total_lots}
+      />
 
+      <MetricCard
+        title="Total Value"
+        value={formatCurrency(metrics.total_value)}
+      />
 
-      {/* LOT TABLE */}
-      <ChartCard title="Auction Lots">
+      <MetricCard
+        title="Average Price"
+        value={formatCurrency(metrics.avg_price)}
+      />
 
-        <table style={tableStyle}>
-
-          <thead>
-            <tr>
-              <th style={thStyle}>Auction</th>
-              <th style={thStyle}>Lot</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Model</th>
-              <th style={thStyle}>Price</th>
-            </tr>
-          </thead>
-
-          <tbody>
-
-            {visibleLots.map((lot,i)=>
-
-              <tr key={i}>
-                <td style={tdStyle}>{lot.auction_house}</td>
-                <td style={tdStyle}>{lot.lot}</td>
-                <td style={tdStyle}>{lot.brand}</td>
-                <td style={tdStyle}>{lot.model}</td>
-                <td style={tdStyle}>{formatCurrency(lot.price)}</td>
-              </tr>
-
-            )}
-
-          </tbody>
-
-        </table>
-
-        {filteredLots.length > 10 &&
-          <button style={buttonStyle}
-            onClick={()=>setShowAllLots(!showAllLots)}>
-            {showAllLots?"Show Less":"Show All"}
-          </button>
-        }
-
-      </ChartCard>
-
+      <MetricCard
+        title="Top Brand"
+        value={metrics.top_brand}
+      />
 
     </div>
 
   )
-
 }
 
 
-// ===============================
-// SCOREBOARD
-// ===============================
+// =====================================
+// UI COMPONENTS
+// =====================================
 
-function Scoreboard({brandIndex}){
+function ChartCard({ title, children }) {
 
-  const top = brandIndex.slice(0,5)
-
-  return(
-
-    <div style={{display:"flex",gap:20}}>
-
-      {top.map(b=>
-
-        <div key={b.brand} style={scoreCardStyle}>
-
-          <div>{b.brand}</div>
-
-          <div style={scoreValueStyle}>
-            {Math.round(b.demand_index)}
-          </div>
-
-        </div>
-
-      )}
-
-    </div>
-
-  )
-
-}
-
-
-// ===============================
-// CHARTS
-// ===============================
-
-function BrandValueChart({brandIndex}){
-
-  return(
-
-    <ChartCard title="Total Value by Brand">
-
-      <ResponsiveContainer width="100%" height={500}>
-
-        <BarChart data={brandIndex}
-          margin={{top:20,right:30,left:20,bottom:80}}>
-
-          <CartesianGrid strokeDasharray="3 3"/>
-
-          <XAxis dataKey="brand"
-            angle={-35}
-            height={160}
-            tickMargin={30}
-            interval={0}
-            textAnchor="end"/>
-
-          <YAxis tickFormatter={formatMillions}/>
-
-          <Tooltip formatter={formatCurrency}/>
-
-          <Bar dataKey="total_value">
-
-            {brandIndex.map((e,i)=>
-              <Cell key={i}
-                fill={COLORS[i%COLORS.length]}/>
-            )}
-
-          </Bar>
-
-        </BarChart>
-
-      </ResponsiveContainer>
-
-    </ChartCard>
-
-  )
-
-}
-
-
-function BrandAvgChart({brandIndex}){
-
-  return(
-
-    <ChartCard title="Average Price by Brand">
-
-      <ResponsiveContainer width="100%" height={500}>
-
-        <BarChart data={brandIndex}
-          margin={{top:20,right:30,left:20,bottom:80}}>
-
-          <CartesianGrid strokeDasharray="3 3"/>
-
-          <XAxis dataKey="brand"
-            angle={-35}
-            height={160}
-            tickMargin={30}
-            interval={0}
-            textAnchor="end"/>
-
-          <YAxis tickFormatter={formatMillions}/>
-
-          <Tooltip formatter={formatCurrency}/>
-
-          <Bar dataKey="avg_price">
-
-            {brandIndex.map((e,i)=>
-              <Cell key={i}
-                fill={COLORS[i%COLORS.length]}/>
-            )}
-
-          </Bar>
-
-        </BarChart>
-
-      </ResponsiveContainer>
-
-    </ChartCard>
-
-  )
-
-}
-
-
-function BrandPieChart({brandIndex}){
-
-  return(
-
-    <ChartCard title="Market Share">
-
-      <ResponsiveContainer width="100%" height={500}>
-
-        <PieChart>
-
-          <Pie data={brandIndex}
-            dataKey="total_value"
-            nameKey="brand"
-            cx="50%"
-            cy="45%"
-            outerRadius={140}
-            innerRadius={60}>
-
-            {brandIndex.map((e,i)=>
-              <Cell key={i}
-                fill={COLORS[i%COLORS.length]}/>
-            )}
-
-          </Pie>
-
-          <Tooltip formatter={formatCurrency}/>
-
-          <Legend verticalAlign="bottom" height={100}/>
-
-        </PieChart>
-
-      </ResponsiveContainer>
-
-    </ChartCard>
-
-  )
-
-}
-
-
-// ===============================
-// UI
-// ===============================
-
-function ChartCard({title,children}){
-
-  return(
+  return (
 
     <div style={cardStyle}>
+
       <h2>{title}</h2>
+
       {children}
-    </div>
-
-  )
-
-}
-
-
-function MetricsRow({metrics}){
-
-  return(
-
-    <div style={{display:"flex",gap:20,marginBottom:30}}>
-
-      <Card title="Total Lots" value={metrics.total_lots}/>
-      <Card title="Average Price" value={formatCurrency(metrics.avg_price)}/>
-      <Card title="Total Value" value={formatCurrency(metrics.total_value)}/>
-      <Card title="Top Brand" value={metrics.top_brand}/>
 
     </div>
 
   )
-
 }
 
 
-function Card({title,value}){
+function MetricCard({ title, value }) {
 
-  return(
+  return (
 
     <div style={metricCardStyle}>
-      <h3>{title}</h3>
-      <p style={metricValueStyle}>{value}</p>
+
+      <div>{title}</div>
+
+      <div style={metricValueStyle}>
+        {value}
+      </div>
+
     </div>
 
   )
-
 }
 
 
-function Header({lastUpdated}){
-
-  return(
-
-    <div style={{marginBottom:20}}>
-      <h1>Watch Demand Index</h1>
-      {lastUpdated &&
-        <p style={{color:"#666"}}>
-          Last updated: {lastUpdated.toLocaleString()}
-        </p>
-      }
-    </div>
-
-  )
-
-}
-
-
-function CenteredMessage({children}){
-
-  return(
-
-    <div style={{
-      display:"flex",
-      justifyContent:"center",
-      alignItems:"center",
-      height:"100vh"
-    }}>
-      {children}
-    </div>
-
-  )
-
-}
-
-
-// ===============================
+// =====================================
 // STYLES
-// ===============================
+// =====================================
 
-const containerStyle={
-  padding:30,
-  background:"#f3f4f6",
-  minHeight:"100vh",
-  color:"#111",
-  width:"100%",
-  maxWidth:"1400px",
-  margin:"0 auto"
+const containerStyle = {
+  padding: "20px 40px",
+  maxWidth: "1400px",
+  margin: "0 auto"
 }
 
-const cardStyle={
-  background:"white",
-  padding:20,
-  borderRadius:10,
-  marginBottom:30,
-  boxShadow:"0 2px 6px rgba(0,0,0,0.1)"
+const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  marginBottom: "30px"
 }
 
-const metricCardStyle={
-  background:"white",
-  padding:15,
-  borderRadius:10,
-  minWidth:180,
-  boxShadow:"0 2px 6px rgba(0,0,0,0.1)"
+const titleStyle = {
+  fontSize: "26px",
+  fontWeight: "bold"
 }
 
-const metricValueStyle={
-  fontSize:20,
-  fontWeight:"bold"
+const navStyle = {
+  display: "flex",
+  gap: "10px"
 }
 
-const dropdownStyle={
-  padding:10,
-  fontSize:16
+const navButtonStyle = {
+  padding: "10px 16px",
+  border: "1px solid #ddd",
+  background: "white",
+  cursor: "pointer"
 }
 
-const buttonStyle={
-  marginTop:10,
-  padding:"8px 16px",
-  background:"#2563eb",
-  color:"white",
-  border:"none",
-  borderRadius:6,
-  cursor:"pointer"
+const activeNavStyle = {
+  ...navButtonStyle,
+  background: "#2563eb",
+  color: "white"
 }
 
-const scoreCardStyle={
-  background:"#2563eb",
-  color:"white",
-  padding:15,
-  borderRadius:10,
-  minWidth:120,
-  textAlign:"center"
+const cardStyle = {
+  background: "white",
+  padding: "20px",
+  marginBottom: "30px",
+  borderRadius: "8px"
 }
 
-const scoreValueStyle={
-  fontSize:28,
-  fontWeight:"bold"
+const metricsRowStyle = {
+  display: "flex",
+  gap: "20px",
+  marginBottom: "30px"
 }
 
-const tableStyle={
-  width:"100%",
-  borderCollapse:"collapse",
-  marginTop:"10px"
+const metricCardStyle = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "8px"
 }
 
-const thStyle={
-  border:"1px solid #e5e7eb",
-  padding:"10px",
-  textAlign:"left",
-  background:"#f9fafb",
-  fontWeight:"600"
+const metricValueStyle = {
+  fontSize: "22px",
+  fontWeight: "bold"
 }
 
-const tdStyle={
-  border:"1px solid #e5e7eb",
-  padding:"10px"
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse"
+}
+
+const thStyle = {
+  border: "1px solid #ddd",
+  padding: "10px",
+  background: "#f3f4f6"
+}
+
+const tdStyle = {
+  border: "1px solid #ddd",
+  padding: "10px"
 }
 
 
-// ===============================
+// =====================================
 
 export default App
