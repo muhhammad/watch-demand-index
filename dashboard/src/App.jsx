@@ -144,202 +144,155 @@ function App() {
 
       <Header lastUpdated={lastUpdated} />
 
+      {/* NAVIGATION */}
       <ChartCard title="Navigation">
 
-        <div style={{display:"flex", gap:10}}>
+        <button
+          style={{
+            ...buttonStyle,
+            background: page==="market" ? "#16a34a" : "#2563eb",
+            marginRight: 10
+          }}
+          onClick={()=>setPage("market")}
+        >
+          Watch Demand Index
+        </button>
 
-          <button
-            style={page==="market"?buttonStyle:metricCardStyle}
-            onClick={()=>setPage("market")}
-          >
-            Market Index
-          </button>
-
-          <button
-            style={page==="arbitrage"?buttonStyle:metricCardStyle}
-            onClick={()=>setPage("arbitrage")}
-          >
-            Arbitrage Finder
-          </button>
-
-        </div>
+        <button
+          style={{
+            ...buttonStyle,
+            background: page==="arbitrage" ? "#16a34a" : "#2563eb"
+          }}
+          onClick={()=>setPage("arbitrage")}
+        >
+          Dealer Arbitrage Finder
+        </button>
 
       </ChartCard>
+
+
+      {/* ========================= */}
+      {/* MARKET INDEX PAGE */}
+      {/* ========================= */}
 
       {page==="market" && (
         <>
-          {/* SCOREBOARD */}
+
           <ChartCard title="Demand Index Scorecard">
-            <Scoreboard brandIndex={brandIndex} />
+            <Scoreboard brandIndex={brandIndex}/>
           </ChartCard>
+
+          {metrics &&
+            <MetricsRow metrics={metrics}/>
+          }
+
+          <ChartCard title="Filter by Brand">
+
+            <select
+              value={selectedBrand}
+              onChange={(e)=>setSelectedBrand(e.target.value)}
+              style={dropdownStyle}
+            >
+              {brands.map(b=>
+                <option key={b}>{b}</option>
+              )}
+            </select>
+
+          </ChartCard>
+
+
+          {/* BRAND TABLE */}
+          <ChartCard title="Brand Demand Index">
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Rank</th>
+                  <th style={thStyle}>Brand</th>
+                  <th style={thStyle}>Lots</th>
+                  <th style={thStyle}>Avg Price</th>
+                  <th style={thStyle}>Total Value</th>
+                  <th style={thStyle}>Demand Index</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {visibleBrands.map((b,i)=>
+                  <tr key={b.brand}>
+                    <td style={tdStyle}>{i+1}</td>
+                    <td style={tdStyle}>{b.brand}</td>
+                    <td style={tdStyle}>{b.total_lots}</td>
+                    <td style={tdStyle}>{formatCurrency(b.avg_price)}</td>
+                    <td style={tdStyle}>{formatCurrency(b.total_value)}</td>
+                    <td style={tdStyle}><b>{b.demand_index}</b></td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {brandIndex.length>5 &&
+              <button style={buttonStyle}
+                onClick={()=>setShowAllBrands(!showAllBrands)}>
+                {showAllBrands?"Show Less":"Show All"}
+              </button>
+            }
+
+          </ChartCard>
+
+
+          {/* CHARTS */}
+          <BrandValueChart brandIndex={brandIndex}/>
+          <BrandAvgChart brandIndex={brandIndex}/>
+          <BrandPieChart brandIndex={brandIndex}/>
+
+
+          {/* LOT TABLE */}
+          <ChartCard title="Auction Lots">
+
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Auction</th>
+                  <th style={thStyle}>Lot</th>
+                  <th style={thStyle}>Brand</th>
+                  <th style={thStyle}>Model</th>
+                  <th style={thStyle}>Price</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {visibleLots.map((lot,i)=>
+                  <tr key={i}>
+                    <td style={tdStyle}>{lot.auction_house}</td>
+                    <td style={tdStyle}>{lot.lot}</td>
+                    <td style={tdStyle}>{lot.brand}</td>
+                    <td style={tdStyle}>{lot.model}</td>
+                    <td style={tdStyle}>{formatCurrency(lot.price)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {filteredLots.length>10 &&
+              <button style={buttonStyle}
+                onClick={()=>setShowAllLots(!showAllLots)}>
+                {showAllLots?"Show Less":"Show All"}
+              </button>
+            }
+
+          </ChartCard>
+
         </>
       )}
 
+
+      {/* ========================= */}
+      {/* ARBITRAGE PAGE */}
+      {/* ========================= */}
+
       {page==="arbitrage" && (
-
-        <ChartCard title="Arbitrage Opportunities">
-
-          <table style={tableStyle}>
-
-            <thead>
-              <tr>
-                <th style={thStyle}>Brand</th>
-                <th style={thStyle}>Reference</th>
-                <th style={thStyle}>Dealer Price</th>
-                <th style={thStyle}>Market Price</th>
-                <th style={thStyle}>Profit %</th>
-                <th style={thStyle}>Grade</th>
-              </tr>
-            </thead>
-
-            <tbody>
-
-              {arbitrage.map((a,i)=>
-
-                <tr key={i}>
-                  <td style={tdStyle}>{a.brand}</td>
-                  <td style={tdStyle}>{a.reference}</td>
-                  <td style={tdStyle}>{formatCurrency(a.dealer_price)}</td>
-                  <td style={tdStyle}>{formatCurrency(a.median_price)}</td>
-                  <td style={tdStyle}>{a.profit_percent.toFixed(1)}%</td>
-                  <td style={tdStyle}>{a.opportunity_grade}</td>
-                </tr>
-
-              )}
-
-            </tbody>
-
-          </table>
-
-        </ChartCard>
-
+        <ArbitragePage/>
       )}
-
-
-      {/* METRICS */}
-      {metrics &&
-        <MetricsRow metrics={metrics}/>
-      }
-
-
-      {/* FILTER */}
-      <ChartCard title="Filter by Brand">
-
-        <select
-          value={selectedBrand}
-          onChange={(e) => setSelectedBrand(e.target.value)}
-          style={dropdownStyle}
-        >
-
-          {brands.map(b =>
-            <option key={b}>{b}</option>
-          )}
-
-        </select>
-
-      </ChartCard>
-
-
-      {/* BRAND TABLE */}
-      <ChartCard title="Brand Demand Index">
-
-        <table style={tableStyle}>
-
-          <thead>
-
-            <tr>
-              <th style={thStyle}>Rank</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Lots</th>
-              <th style={thStyle}>Avg Price</th>
-              <th style={thStyle}>Total Value</th>
-              <th style={thStyle}>Demand Index</th>
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            {visibleBrands.map((b,i)=>
-
-              <tr key={b.brand}>
-                <td style={tdStyle}>{i+1}</td>
-                <td style={tdStyle}>{b.brand}</td>
-                <td style={tdStyle}>{b.total_lots}</td>
-                <td style={tdStyle}>{formatCurrency(b.avg_price)}</td>
-                <td style={tdStyle}>{formatCurrency(b.total_value)}</td>
-                <td style={tdStyle}><b>{b.demand_index}</b></td>
-              </tr>
-
-            )}
-
-          </tbody>
-
-        </table>
-
-        {brandIndex.length > 5 &&
-          <button style={buttonStyle}
-            onClick={()=>setShowAllBrands(!showAllBrands)}>
-            {showAllBrands?"Show Less":"Show All"}
-          </button>
-        }
-
-      </ChartCard>
-
-
-      {/* VALUE CHART */}
-      <BrandValueChart brandIndex={brandIndex}/>
-
-
-      {/* AVG PRICE CHART */}
-      <BrandAvgChart brandIndex={brandIndex}/>
-
-
-      {/* PIE CHART */}
-      <BrandPieChart brandIndex={brandIndex}/>
-
-
-      {/* LOT TABLE */}
-      <ChartCard title="Auction Lots">
-
-        <table style={tableStyle}>
-
-          <thead>
-            <tr>
-              <th style={thStyle}>Auction</th>
-              <th style={thStyle}>Lot</th>
-              <th style={thStyle}>Brand</th>
-              <th style={thStyle}>Model</th>
-              <th style={thStyle}>Price</th>
-            </tr>
-          </thead>
-
-          <tbody>
-
-            {visibleLots.map((lot,i)=>
-
-              <tr key={i}>
-                <td style={tdStyle}>{lot.auction_house}</td>
-                <td style={tdStyle}>{lot.lot}</td>
-                <td style={tdStyle}>{lot.brand}</td>
-                <td style={tdStyle}>{lot.model}</td>
-                <td style={tdStyle}>{formatCurrency(lot.price)}</td>
-              </tr>
-
-            )}
-
-          </tbody>
-
-        </table>
-
-        {filteredLots.length > 10 &&
-          <button style={buttonStyle}
-            onClick={()=>setShowAllLots(!showAllLots)}>
-            {showAllLots?"Show Less":"Show All"}
-          </button>
-        }
-
-      </ChartCard>
 
 
     </div>
@@ -594,6 +547,145 @@ function CenteredMessage({children}){
     }}>
       {children}
     </div>
+
+  )
+
+}
+
+
+// ===============================
+// ARBITRAGE PAGE COMPONENT
+// ===============================
+
+function ArbitragePage() {
+
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+
+    async function load() {
+
+      try {
+
+        const res = await fetch(`${API_BASE}/arbitrage`)
+
+        if (!res.ok)
+          throw new Error("Failed to load arbitrage data")
+
+        const json = await res.json()
+
+        setData(json)
+
+      } catch (err) {
+
+        setError(err.message)
+
+      } finally {
+
+        setLoading(false)
+
+      }
+
+    }
+
+    load()
+
+  }, [])
+
+
+  if (loading)
+    return (
+      <ChartCard title="Dealer Arbitrage Finder">
+        Loading arbitrage opportunities...
+      </ChartCard>
+    )
+
+  if (error)
+    return (
+      <ChartCard title="Dealer Arbitrage Finder">
+        Error: {error}
+      </ChartCard>
+    )
+
+
+  return (
+
+    <ChartCard title="Dealer Arbitrage Opportunities">
+
+      <table style={tableStyle}>
+
+        <thead>
+
+          <tr>
+
+            <th style={thStyle}>Brand</th>
+
+            <th style={thStyle}>Reference</th>
+
+            <th style={thStyle}>Dealer Price</th>
+
+            <th style={thStyle}>Market Median</th>
+
+            <th style={thStyle}>Profit</th>
+
+            <th style={thStyle}>Profit %</th>
+
+            <th style={thStyle}>Grade</th>
+
+            <th style={thStyle}>Seller</th>
+
+            <th style={thStyle}>Location</th>
+
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          {data.map((row, i) => (
+
+            <tr key={i}>
+
+              <td style={tdStyle}>{row.brand}</td>
+
+              <td style={tdStyle}>{row.reference}</td>
+
+              <td style={tdStyle}>{formatCurrency(row.dealer_price)}</td>
+
+              <td style={tdStyle}>{formatCurrency(row.median_price)}</td>
+
+              <td style={tdStyle}>{formatCurrency(row.absolute_profit)}</td>
+
+              <td style={tdStyle}>
+                <b>{row.profit_percent.toFixed(1)}%</b>
+              </td>
+
+              <td style={tdStyle}>
+                <b style={{
+                  color:
+                    row.opportunity_grade === "A" ? "#16a34a" :
+                    row.opportunity_grade === "B" ? "#ca8a04" :
+                    "#dc2626"
+                }}>
+                  {row.opportunity_grade}
+                </b>
+              </td>
+
+              <td style={tdStyle}>{row.seller}</td>
+
+              <td style={tdStyle}>{row.location}</td>
+
+            </tr>
+
+          ))}
+
+        </tbody>
+
+      </table>
+
+    </ChartCard>
 
   )
 
