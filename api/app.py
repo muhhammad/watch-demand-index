@@ -175,21 +175,17 @@ def get_brand_index():
 @app.get("/arbitrage")
 def get_arbitrage():
 
-    conn = get_conn()
+    conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
 
     cursor.execute("""
         SELECT
             brand,
-            model,
             reference,
             dealer_price,
             median_price,
-            absolute_profit,
             profit_percent,
-            opportunity_grade,
-            seller,
-            location
+            opportunity_grade
         FROM arbitrage_opportunities
         ORDER BY profit_percent DESC
         LIMIT 100
@@ -203,15 +199,11 @@ def get_arbitrage():
     return [
         {
             "brand": r[0],
-            "model": r[1],
-            "reference": r[2],
-            "dealer_price": float(r[3]),
-            "median_price": float(r[4]),
-            "profit": float(r[5]),
-            "profit_percent": float(r[6]),
-            "grade": r[7],
-            "seller": r[8],
-            "location": r[9],
+            "reference": r[1],
+            "dealer_price": float(r[2]),
+            "median_price": float(r[3]),
+            "profit_percent": float(r[4]),
+            "opportunity_grade": r[5]
         }
         for r in rows
     ]
