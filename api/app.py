@@ -167,3 +167,51 @@ def get_brand_index():
     conn.close()
 
     return results
+
+
+# -----------------------------
+# Arbitrage endpoint
+# -----------------------------
+@app.get("/arbitrage")
+def get_arbitrage():
+
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            brand,
+            model,
+            reference,
+            dealer_price,
+            median_price,
+            absolute_profit,
+            profit_percent,
+            opportunity_grade,
+            seller,
+            location
+        FROM arbitrage_opportunities
+        ORDER BY profit_percent DESC
+        LIMIT 100
+    """)
+
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return [
+        {
+            "brand": r[0],
+            "model": r[1],
+            "reference": r[2],
+            "dealer_price": float(r[3]),
+            "median_price": float(r[4]),
+            "profit": float(r[5]),
+            "profit_percent": float(r[6]),
+            "grade": r[7],
+            "seller": r[8],
+            "location": r[9],
+        }
+        for r in rows
+    ]
