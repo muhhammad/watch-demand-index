@@ -19,7 +19,10 @@ import {
 // CONFIG
 // ===============================
 
-const API_BASE = "https://web-production-a02be.up.railway.app"
+const API_BASE =
+  import.meta.env.DEV
+    ? "http://127.0.0.1:8000"
+    : "https://web-production-a02be.up.railway.app"
 
 const COLORS = [
   "#2563eb",
@@ -517,6 +520,53 @@ function Card({title,value}){
 }
 
 
+function StatCard({title,value}){
+
+  return(
+    <div style={{
+      background:"white",
+      padding:20,
+      borderRadius:10,
+      boxShadow:"0 2px 6px rgba(0,0,0,0.1)",
+      minWidth:200
+    }}>
+      <div style={{color:"#666"}}>{title}</div>
+      <div style={{
+        fontSize:24,
+        fontWeight:"bold"
+      }}>
+        {value}
+      </div>
+    </div>
+  )
+
+}
+
+
+function GradeBadge({grade}){
+
+  const colors={
+    "A+":"#16a34a",
+    "A":"#22c55e",
+    "B":"#f59e0b",
+    "C":"#ef4444"
+  }
+
+  return(
+    <span style={{
+      background:colors[grade] || "#6b7280",
+      color:"white",
+      padding:"4px 8px",
+      borderRadius:"6px",
+      fontWeight:"bold"
+    }}>
+      {grade}
+    </span>
+  )
+
+}
+
+
 function Header({lastUpdated}){
 
   return(
@@ -557,11 +607,37 @@ function CenteredMessage({children}){
 // ARBITRAGE PAGE COMPONENT
 // ===============================
 
+function SourceBadge({priority, source}){
+
+  const colors = {
+    1:"#16a34a",
+    2:"#22c55e",
+    3:"#eab308",
+    4:"#f97316",
+    5:"#6b7280"
+  }
+
+  return (
+    <span style={{
+      background:colors[priority],
+      color:"white",
+      padding:"4px 8px",
+      borderRadius:"6px",
+      fontWeight:"bold"
+    }}>
+      {source}
+    </span>
+  )
+}
+
 function ArbitragePage() {
 
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  const [sortBy, setSortBy] = useState("profit_percent")
+  const [minProfit, setMinProfit] = useState(5)
 
   useEffect(() => {
 
@@ -596,96 +672,163 @@ function ArbitragePage() {
 
 
   if (loading)
-    return (
-      <ChartCard title="Dealer Arbitrage Finder">
-        Loading arbitrage opportunities...
-      </ChartCard>
-    )
+    return <ChartCard title="Dealer Arbitrage Finder">Loading...</ChartCard>
 
   if (error)
-    return (
-      <ChartCard title="Dealer Arbitrage Finder">
-        Error: {error}
-      </ChartCard>
-    )
+    return <ChartCard title="Dealer Arbitrage Finder">Error: {error}</ChartCard>
+
+
+  // FILTER
+  const filtered = data
+    .filter(d => d.profit_percent >= minProfit)
+    .sort((a, b) => b[sortBy] - a[sortBy])
 
 
   return (
 
-    <ChartCard title="Dealer Arbitrage Opportunities">
+    <>
 
-      <table style={tableStyle}>
+      {/* SUMMARY */}
+      <ChartCard title="Top Dealer Opportunities">
 
-        <thead>
+        <div style={{display:"flex",gap:20}}>
 
-          <tr>
+          <StatCard
+            title="Total Opportunities"
+            value={filtered.length}
+          />
 
-            <th style={thStyle}>Brand</th>
+          <StatCard
+            title="Best Profit"
+            value={
+              filtered.length
+                ? filtered[0].profit_percent.toFixed(1) + "%"
+                : "-"
+            }
+          />
 
-            <th style={thStyle}>Reference</th>
+          <StatCard
+            title="Best Absolute Profit"
+            value={
+              filtered.length
+                ? formatCurrency(filtered[0].absolute_profit)
+                : "-"
+            }
+          />
 
-            <th style={thStyle}>Dealer Price</th>
+        </div>
 
-            <th style={thStyle}>Market Median</th>
+      </ChartCard>
 
-            <th style={thStyle}>Profit</th>
 
-            <th style={thStyle}>Profit %</th>
+      {/* CONTROLS */}
+      <ChartCard title="Filters">
 
-            <th style={thStyle}>Grade</th>
+        <div style={{display:"flex",gap:20}}>
 
-            <th style={thStyle}>Seller</th>
+          <div>
+            Minimum Profit %
+            <br/>
+            <input
+              type="number"
+              value={minProfit}
+              onChange={(e)=>setMinProfit(Number(e.target.value))}
+              style={inputStyle}
+            />
+          </div>
 
-            <th style={thStyle}>Location</th>
+          <div>
+            Sort By
+            <br/>
+            <select
+              value={sortBy}
+              onChange={(e)=>setSortBy(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="profit_percent">Profit %</option>
+              <option value="absolute_profit">Absolute Profit</option>
+              <option value="dealer_price">Dealer Price</option>
+            </select>
+          </div>
 
-          </tr>
+        </div>
 
-        </thead>
+      </ChartCard>
 
-        <tbody>
 
-          {data.map((row, i) => (
+      {/* TABLE */}
+      <ChartCard title="Live Arbitrage Feed">
 
-            <tr key={i}>
+        <table style={tableStyle}>
 
-              <td style={tdStyle}>{row.brand}</td>
-
-              <td style={tdStyle}>{row.reference}</td>
-
-              <td style={tdStyle}>{formatCurrency(row.dealer_price)}</td>
-
-              <td style={tdStyle}>{formatCurrency(row.median_price)}</td>
-
-              <td style={tdStyle}>{formatCurrency(row.absolute_profit)}</td>
-
-              <td style={tdStyle}>
-                <b>{row.profit_percent.toFixed(1)}%</b>
-              </td>
-
-              <td style={tdStyle}>
-                <b style={{
-                  color:
-                    row.opportunity_grade === "A" ? "#16a34a" :
-                    row.opportunity_grade === "B" ? "#ca8a04" :
-                    "#dc2626"
-                }}>
-                  {row.opportunity_grade}
-                </b>
-              </td>
-
-              <td style={tdStyle}>{row.seller}</td>
-
-              <td style={tdStyle}>{row.location}</td>
-
+          <thead>
+            <tr>
+              <th style={thStyle}>Priority</th>
+              <th style={thStyle}>Source</th>
+              <th style={thStyle}>Seller</th>
+              <th style={thStyle}>Brand</th>
+              <th style={thStyle}>Reference</th>
+              <th style={thStyle}>Dealer Price</th>
+              <th style={thStyle}>Market Price</th>
+              <th style={thStyle}>Profit %</th>
+              <th style={thStyle}>Grade</th>
             </tr>
+          </thead>
 
-          ))}
+          <tbody>
+            {filtered.map((row,i)=>(
+              <tr key={i}>
 
-        </tbody>
+                <td style={tdStyle}>
+                  <SourceBadge
+                    priority={row.source_priority}
+                    source={row.source}
+                  />
+                </td>
 
-      </table>
+                <td style={tdStyle}>
+                  {row.source || "-"}
+                </td>
 
-    </ChartCard>
+                <td style={tdStyle}>
+                  {row.seller}
+                </td>
+
+                <td style={tdStyle}>
+                  {row.brand}
+                </td>
+
+                <td style={tdStyle}>
+                  {row.reference}
+                </td>
+
+                <td style={tdStyle}>
+                  {formatCurrency(row.dealer_price)}
+                </td>
+
+                <td style={tdStyle}>
+                  {formatCurrency(row.median_price)}
+                </td>
+
+                <td style={tdStyle}>
+                  <b style={{color:"#16a34a"}}>
+                    {row.profit_percent}%
+                  </b>
+                </td>
+
+                <td style={tdStyle}>
+                  {row.opportunity_grade}
+                </td>
+
+              </tr>
+            ))}
+          </tbody>
+
+        </table>
+
+      </ChartCard>
+
+    </>
 
   )
 
@@ -773,6 +916,14 @@ const thStyle={
 const tdStyle={
   border:"1px solid #e5e7eb",
   padding:"10px"
+}
+
+const inputStyle={
+  padding:"8px",
+  fontSize:"14px",
+  borderRadius:"6px",
+  border:"1px solid #ccc",
+  marginTop:"5px"
 }
 
 

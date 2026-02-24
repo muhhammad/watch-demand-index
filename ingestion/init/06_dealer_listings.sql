@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS dealer_listings (
     id SERIAL PRIMARY KEY,
 
     source TEXT NOT NULL,
+    source_priority INTEGER,
     seller TEXT,
     location TEXT,
 

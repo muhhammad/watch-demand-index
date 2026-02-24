@@ -2,40 +2,46 @@ DROP VIEW IF EXISTS arbitrage_opportunities;
 
 CREATE VIEW arbitrage_opportunities AS
 SELECT
-    d.id,
-    d.source,
-    d.seller,
-    d.location,
-    d.brand,
-    d.model,
-    d.reference,
-    d.price AS dealer_price,
-    d.currency,
-    d.condition,
-
+    dl.id,
+    dl.source,
+    dl.source_priority,
+    dl.seller,
+    dl.location,
+    dl.brand,
+    dl.model,
+    dl.reference,
+    dl.price AS dealer_price,
+    dl.currency,
+    dl.condition,
+    
     mp.median_price,
     mp.low_price,
     mp.high_price,
 
-    (mp.median_price - d.price) AS absolute_profit,
-
-    ROUND(
-        ((mp.median_price - d.price) / d.price) * 100,
-        2
-    ) AS profit_percent,
+    (mp.median_price - dl.price) AS absolute_profit,
 
     CASE
-        WHEN ((mp.median_price - d.price) / d.price) * 100 >= 15 THEN 'STEAL'
-        WHEN ((mp.median_price - d.price) / d.price) * 100 >= 10 THEN 'STRONG BUY'
-        WHEN ((mp.median_price - d.price) / d.price) * 100 >= 5 THEN 'BUY'
-        ELSE 'PASS'
+        WHEN dl.price > 0
+        THEN ROUND(
+            ((mp.median_price - dl.price) / dl.price * 100)::numeric,
+            2
+        )
+        ELSE NULL
+    END AS profit_percent,
+
+    CASE
+        WHEN ((mp.median_price - dl.price) / dl.price) > 0.20 THEN 'A+'
+        WHEN ((mp.median_price - dl.price) / dl.price) > 0.15 THEN 'A'
+        WHEN ((mp.median_price - dl.price) / dl.price) > 0.10 THEN 'B'
+        WHEN ((mp.median_price - dl.price) / dl.price) > 0.05 THEN 'C'
+        ELSE 'D'
     END AS opportunity_grade,
 
-    d.created_at
+    dl.created_at
 
-FROM dealer_listings d
+FROM dealer_listings dl
 
 JOIN market_prices mp
-ON mp.reference LIKE d.reference || '%'
+ON dl.reference = mp.reference
 
-WHERE mp.median_price > d.price;
+WHERE dl.price < mp.median_price;
