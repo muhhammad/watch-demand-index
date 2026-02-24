@@ -607,10 +607,10 @@ function CenteredMessage({children}){
 // ARBITRAGE PAGE COMPONENT
 // ===============================
 
-function SourceBadge({priority, source}){
+function SourceBadge({priority}) {
 
   const colors = {
-    1:"#16a34a",
+    1:"#16a34a",  // best
     2:"#22c55e",
     3:"#eab308",
     4:"#f97316",
@@ -619,13 +619,16 @@ function SourceBadge({priority, source}){
 
   return (
     <span style={{
-      background:colors[priority],
+      background:colors[priority] || "#6b7280",
       color:"white",
       padding:"4px 8px",
       borderRadius:"6px",
-      fontWeight:"bold"
+      fontWeight:"bold",
+      minWidth:"28px",
+      display:"inline-block",
+      textAlign:"center"
     }}>
-      {source}
+      #{priority}
     </span>
   )
 }
