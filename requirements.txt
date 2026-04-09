@@ -1,24 +1,13 @@
-# FastAPI backend
 fastapi
 uvicorn[standard]
-
-# Database
 psycopg2-binary
-
-# Environment variables
 python-dotenv
-
-# Data handling
 pydantic
-
-# HTTP requests (optional but useful)
+email-validator
 requests
-
-# Playwright (collectors)
 playwright
-
-# Optional: async support improvements
+python-jose[cryptography]
+passlib[bcrypt]
+slowapi
 anyio
-
-# Optional: JSON handling performance
 orjson
