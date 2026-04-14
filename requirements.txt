@@ -11,3 +11,5 @@ passlib[bcrypt]
 slowapi
 anyio
 orjson
+apscheduler
+stripe

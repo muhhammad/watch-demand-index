@@ -147,3 +147,28 @@ def require_roles(*roles: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return user
     return _check
+
+
+def require_plan(*plans: str):
+    """Dependency factory: enforce tenant plan tier."""
+    async def _check(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT plan_tier, status FROM tenants WHERE tenant_id = %s",
+                    (user.tenant_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+        if not row or str(row[1]) != "active":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Account suspended or not found")
+        if str(row[0]) not in plans:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This feature requires one of: {', '.join(plans)}. Your plan: {row[0]}.",
+            )
+        return user
+    return _check

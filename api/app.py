@@ -1,7 +1,9 @@
 """
 Watch Demand Index – Production FastAPI application.
 """
+import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,16 +11,41 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from api.auth import CurrentUser, get_current_user
+from api.auth import CurrentUser, get_current_user, require_plan
 from api.db import get_conn
 from api.routers.auth_router import router as auth_router
+from api.routers.billing_router import router as billing_router
+from api.routers.watchlist_router import router as watchlist_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
+        from pipeline.scheduler import start_scheduler, stop_scheduler
+        start_scheduler()
+        logger.info("Pipeline scheduler started")
+        yield
+        stop_scheduler()
+        logger.info("Pipeline scheduler stopped")
+    else:
+        yield
+
+
 app = FastAPI(
-    title="Watch Demand Index API", version="2.0.0",
+    title="Watch Demand Index API",
+    version="2.0.0",
     description="Enterprise API for luxury watch demand analytics, arbitrage discovery, and market intelligence.",
-    docs_url="/docs", redoc_url="/redoc",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -27,12 +54,16 @@ _raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localh
 allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
-    CORSMiddleware, allow_origins=allowed_origins, allow_credentials=True,
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-API-Key", "Content-Type"],
 )
 
 app.include_router(auth_router)
+app.include_router(billing_router)
+app.include_router(watchlist_router)
 
 
 @app.get("/", tags=["System"])
@@ -87,7 +118,7 @@ def get_brand_index(user: CurrentUser = Depends(get_current_user)):
 
 
 @app.get("/market-index", tags=["Indexes"])
-def get_market_index(user: CurrentUser = Depends(get_current_user)):
+def get_market_index(user: CurrentUser = Depends(require_plan("pro", "enterprise"))):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT index_date, lot_count, total_value, avg_price, median_price, "
@@ -112,7 +143,7 @@ def get_leaderboard(user: CurrentUser = Depends(get_current_user)):
 
 
 @app.get("/arbitrage", tags=["Arbitrage"])
-def get_arbitrage(user: CurrentUser = Depends(get_current_user)):
+def get_arbitrage(user: CurrentUser = Depends(require_plan("pro", "enterprise"))):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT source, seller, brand, reference, dealer_price, median_price, "
