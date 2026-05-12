@@ -7,7 +7,7 @@ const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV
     ? "http://127.0.0.1:8000"
-    : "http://localhost:8000")
+    : "")
 ).replace(/\/$/, "")
 
 class ApiError extends Error {
@@ -20,6 +20,10 @@ class ApiError extends Error {
 }
 
 async function apiRequest(path, options = {}) {
+  if (!API_BASE) {
+    throw new Error("VITE_API_BASE_URL is not configured for this deployment")
+  }
+
   const token = localStorage.getItem(ACCESS_TOKEN_KEY)
   const headers = new Headers(options.headers || {})
 
