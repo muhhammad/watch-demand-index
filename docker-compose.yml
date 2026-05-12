@@ -35,8 +35,8 @@ services:
 
   dashboard:
     build:
-      context: .
-      dockerfile: dashboard/Dockerfile
+      context: ./dashboard
+      dockerfile: Dockerfile
     container_name: watch_dashboard
     ports:
       - "5173:5173"
