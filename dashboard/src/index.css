@@ -6,6 +6,17 @@ html, body, #root {
 }
 
 body {
-  font-family: Inter, system-ui, Arial, sans-serif;
-  background: #f3f4f6;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: #f8f5ec;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
