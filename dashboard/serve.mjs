@@ -10,7 +10,11 @@ await writeFile(
   "utf8",
 )
 
-const child = spawn("node", ["./node_modules/serve/build/main.js", "-s", "dist", "-p", port], {
+const listenTarget = `tcp://0.0.0.0:${port}`
+
+console.log(`Starting static server on ${listenTarget}`)
+
+const child = spawn("node", ["./node_modules/serve/build/main.js", "-s", "dist", "-l", listenTarget], {
   stdio: "inherit",
 })
 
