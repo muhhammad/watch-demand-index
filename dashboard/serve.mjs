@@ -1,9 +1,16 @@
 import { spawn } from "node:child_process"
+import { writeFile } from "node:fs/promises"
 
 const port = process.env.PORT || "5173"
-const listenTarget = `tcp://0.0.0.0:${port}`
+const apiBaseUrl = process.env.VITE_API_BASE_URL || ""
 
-const child = spawn("./node_modules/.bin/serve", ["-s", "dist", "-l", listenTarget], {
+await writeFile(
+  "./dist/runtime-config.js",
+  `window.__APP_CONFIG__ = ${JSON.stringify({ VITE_API_BASE_URL: apiBaseUrl })};\n`,
+  "utf8",
+)
+
+const child = spawn("node", ["./node_modules/serve/build/main.js", "-s", "dist", "-p", port], {
   stdio: "inherit",
 })
 

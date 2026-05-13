@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 const ACCESS_TOKEN_KEY = "wdi.accessToken"
 const REFRESH_TOKEN_KEY = "wdi.refreshToken"
 
+const RUNTIME_API_BASE = window.__APP_CONFIG__?.VITE_API_BASE_URL
 const API_BASE = (
+  RUNTIME_API_BASE ||
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV
     ? "http://127.0.0.1:8000"
