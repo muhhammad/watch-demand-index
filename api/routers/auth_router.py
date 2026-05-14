@@ -43,12 +43,16 @@ class CreateApiKeyRequest(BaseModel):
 def register(request: Request, body: RegisterRequest):
     if body.plan_tier not in ("starter", "pro", "enterprise"):
         raise HTTPException(400, "plan_tier must be starter, pro, or enterprise")
+    raw_refresh, refresh_hash = create_refresh_token()
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM users WHERE email = %s", (body.email,))
             if cur.fetchone():
                 raise HTTPException(409, "Email already registered")
+            cur.execute("SELECT 1 FROM tenants WHERE name = %s", (body.company_name,))
+            if cur.fetchone():
+                raise HTTPException(409, "Company name already registered")
             cur.execute("INSERT INTO tenants (name, plan_tier) VALUES (%s, %s) RETURNING tenant_id",
                         (body.company_name, body.plan_tier))
             tenant_id = cur.fetchone()[0]
@@ -56,6 +60,7 @@ def register(request: Request, body: RegisterRequest):
                         "VALUES (%s, %s, %s, 'admin') RETURNING user_id",
                         (tenant_id, body.email, hash_password(body.password)))
             user_id = cur.fetchone()[0]
+            _persist_refresh_token_cur(cur, str(user_id), refresh_hash)
         conn.commit()
     except HTTPException:
         conn.rollback(); raise
@@ -65,8 +70,6 @@ def register(request: Request, body: RegisterRequest):
     finally:
         conn.close()
     access_token = create_access_token(str(user_id), str(tenant_id), "admin")
-    raw_refresh, refresh_hash = create_refresh_token()
-    _persist_refresh_token(str(user_id), refresh_hash)
     return {"access_token": access_token, "refresh_token": raw_refresh,
             "token_type": "bearer", "user_id": str(user_id), "tenant_id": str(tenant_id)}
 
@@ -198,8 +201,15 @@ def _persist_refresh_token(user_id: str, token_hash: str) -> None:
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
-                        (user_id, token_hash, expires_at))
+            _persist_refresh_token_cur(cur, user_id, token_hash, expires_at)
         conn.commit()
     finally:
         conn.close()
+
+
+def _persist_refresh_token_cur(cur, user_id: str, token_hash: str, expires_at=None) -> None:
+    expires_at = expires_at or (datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    cur.execute(
+        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
+        (user_id, token_hash, expires_at),
+    )
