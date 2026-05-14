@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 const ACCESS_TOKEN_KEY = "wdi.accessToken"
 const REFRESH_TOKEN_KEY = "wdi.refreshToken"
+const TOOLTIP_GAP = 12
+const TOOLTIP_VIEWPORT_MARGIN = 16
 
 const RUNTIME_API_BASE = window.__APP_CONFIG__?.VITE_API_BASE_URL
 const API_BASE = (
@@ -756,15 +759,105 @@ function App() {
 }
 
 function InfoTooltip({ label, text }) {
+  const anchorRef = useRef(null)
+  const bubbleRef = useRef(null)
+  const tooltipId = useId()
+  const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState(null)
+
+  useEffect(() => {
+    if (!open) {
+      setPosition(null)
+      return
+    }
+
+    function updatePosition() {
+      const anchor = anchorRef.current
+      const bubble = bubbleRef.current
+      if (!anchor || !bubble) return
+
+      const anchorRect = anchor.getBoundingClientRect()
+      const bubbleRect = bubble.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      const preferredTop = anchorRect.top - bubbleRect.height - TOOLTIP_GAP
+      const placeBelow = preferredTop < TOOLTIP_VIEWPORT_MARGIN
+      const top = placeBelow
+        ? Math.min(
+            anchorRect.bottom + TOOLTIP_GAP,
+            viewportHeight - bubbleRect.height - TOOLTIP_VIEWPORT_MARGIN,
+          )
+        : Math.max(preferredTop, TOOLTIP_VIEWPORT_MARGIN)
+
+      const centeredLeft = anchorRect.left + anchorRect.width / 2 - bubbleRect.width / 2
+      const left = Math.min(
+        Math.max(centeredLeft, TOOLTIP_VIEWPORT_MARGIN),
+        viewportWidth - bubbleRect.width - TOOLTIP_VIEWPORT_MARGIN,
+      )
+      const arrowOffset = Math.min(
+        Math.max(anchorRect.left + anchorRect.width / 2 - left, 18),
+        bubbleRect.width - 18,
+      )
+
+      setPosition({
+        top,
+        left,
+        side: placeBelow ? "bottom" : "top",
+        arrowOffset,
+      })
+    }
+
+    updatePosition()
+    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", updatePosition, true)
+
+    return () => {
+      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", updatePosition, true)
+    }
+  }, [open])
+
+  const bubble =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <span
+            ref={bubbleRef}
+            id={tooltipId}
+            className={`tooltip-bubble tooltip-bubble--${position?.side || "top"}`}
+            role="tooltip"
+            style={{
+              top: position ? `${position.top}px` : "0px",
+              left: position ? `${position.left}px` : "0px",
+              visibility: position ? "visible" : "hidden",
+              "--tooltip-arrow-offset": position ? `${position.arrowOffset}px` : "24px",
+            }}
+          >
+            {text}
+          </span>,
+          document.body,
+        )
+      : null
+
   return (
-    <span className="tooltip-anchor" tabIndex={0} title={text} aria-label={`${label}: ${text}`}>
-      <span className="tooltip-dot" aria-hidden="true">
-        i
-      </span>
-      <span className="tooltip-bubble" role="tooltip">
-        {text}
-      </span>
-    </span>
+    <>
+      <button
+        ref={anchorRef}
+        type="button"
+        className="tooltip-anchor"
+        aria-label={`${label}: ${text}`}
+        aria-describedby={open ? tooltipId : undefined}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        <span className="tooltip-dot" aria-hidden="true">
+          i
+        </span>
+      </button>
+      {bubble}
+    </>
   )
 }
 

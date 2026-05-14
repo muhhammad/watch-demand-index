@@ -222,13 +222,17 @@
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: rgba(140, 109, 40, 0.16);
-  color: #7d5c22;
+  border: 1px solid rgba(125, 92, 34, 0.22);
+  background: linear-gradient(180deg, #fff7e3 0%, #f0dfb5 100%);
+  color: #5f4212;
   font-size: 0.68rem;
   font-weight: 700;
   cursor: help;
   outline: none;
   flex-shrink: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .tooltip-anchor:focus-visible {
@@ -240,41 +244,40 @@
 }
 
 .tooltip-bubble {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 12px);
-  transform: translate(-50%, 10px);
+  position: fixed;
+  transform: translateY(0);
   width: min(280px, calc(100vw - 64px));
   padding: 12px 14px;
   border-radius: 14px;
-  background: #1d1a16;
-  color: #fff9ee;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  background: linear-gradient(180deg, #201910 0%, #312516 100%);
+  color: #fffaf0;
   box-shadow: 0 18px 40px rgba(29, 26, 22, 0.24);
   font-size: 0.82rem;
   font-weight: 500;
   line-height: 1.45;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease;
   z-index: 20;
 }
 
 .tooltip-bubble::after {
   content: "";
   position: absolute;
-  top: 100%;
-  left: 50%;
+  left: var(--tooltip-arrow-offset);
   transform: translateX(-50%);
-  border-width: 7px 6px 0;
   border-style: solid;
-  border-color: #1d1a16 transparent transparent;
 }
 
-.tooltip-anchor:hover .tooltip-bubble,
-.tooltip-anchor:focus .tooltip-bubble,
-.tooltip-anchor:focus-visible .tooltip-bubble {
-  opacity: 1;
-  transform: translate(-50%, 0);
+.tooltip-bubble--top::after {
+  top: 100%;
+  border-width: 7px 6px 0;
+  border-color: #312516 transparent transparent;
+}
+
+.tooltip-bubble--bottom::after {
+  bottom: 100%;
+  border-width: 0 6px 7px;
+  border-color: transparent transparent #201910;
 }
 
 .metric-card strong {
