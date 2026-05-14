@@ -52,10 +52,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
 allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+allowed_origin_regex = os.getenv(
+    "ALLOWED_ORIGIN_REGEX",
+    r"https://.*\.up\.railway\.app",
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-API-Key", "Content-Type"],
