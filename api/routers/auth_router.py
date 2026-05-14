@@ -3,6 +3,7 @@ Auth endpoints: register, login, token refresh, logout, current user,
 and API key management.
 """
 import hashlib
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -17,6 +18,7 @@ from api.auth import (
 from api.db import get_conn
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 
 class RegisterRequest(BaseModel):
@@ -58,6 +60,7 @@ def register(request: Request, body: RegisterRequest):
     except HTTPException:
         conn.rollback(); raise
     except Exception as exc:
+        logger.exception("Registration failed for email=%s company=%s", body.email, body.company_name)
         conn.rollback(); raise HTTPException(500, "Registration failed") from exc
     finally:
         conn.close()

@@ -12,6 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from api.auth import CurrentUser, get_current_user, require_plan
+from api.bootstrap import bootstrap_database
 from api.db import get_conn
 from api.routers.auth_router import router as auth_router
 from api.routers.billing_router import router as billing_router
@@ -28,6 +29,9 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("AUTO_BOOTSTRAP_DB", "true").lower() == "true":
+        bootstrap_database()
+        logger.info("Database bootstrap complete")
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
         from pipeline.scheduler import start_scheduler, stop_scheduler
         start_scheduler()
